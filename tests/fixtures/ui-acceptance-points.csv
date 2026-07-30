@@ -1,0 +1,2 @@
+GroupName,GroupTopic,DeviceName,Protocol,Host,Port,TagName,Address,DataType,Station,ScanCycleMs,UploadCycleSeconds,Remark
+导入验收组,edge/acceptance/import,导入验收设备,ModbusTcp,127.0.0.1,502,导入温度,x=3;10,Int16,1,1000,10,前端导入验收

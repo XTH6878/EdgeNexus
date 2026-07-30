@@ -1,0 +1,28 @@
+services:
+  gateway:
+    build:
+      context: .
+    image: snet-edge-gateway:local
+    restart: unless-stopped
+    read_only: true
+    init: true
+    ports:
+      - "5088:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Authentication__AdminUsername: ${SNET_ADMIN_USERNAME:?SNET_ADMIN_USERNAME is required}
+      Authentication__AdminPassword: ${SNET_ADMIN_PASSWORD:?SNET_ADMIN_PASSWORD is required}
+      Authentication__RequireHttps: "false"
+      Swagger__Enabled: "false"
+    volumes:
+      - gateway-data:/var/lib/snet-edge
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+
+volumes:
+  gateway-data:

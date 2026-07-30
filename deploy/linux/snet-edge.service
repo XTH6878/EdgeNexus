@@ -1,0 +1,34 @@
+[Unit]
+Description=Snet Edge Industrial Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=snet-edge
+Group=snet-edge
+WorkingDirectory=/opt/snet-edge
+ExecStart=/usr/bin/dotnet /opt/snet-edge/Snet.Edge.WebApi.dll
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5088
+Environment=Gateway__DataDirectory=/var/lib/snet-edge
+Environment=Swagger__Enabled=false
+EnvironmentFile=/etc/snet-edge/environment
+Restart=always
+RestartSec=5s
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/snet-edge
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

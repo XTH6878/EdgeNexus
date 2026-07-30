@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Snet.Edge.Domain/Snet.Edge.Domain.csproj" />
+    <Project Path="src/Snet.Edge.Application/Snet.Edge.Application.csproj" />
+    <Project Path="src/Snet.Edge.Infrastructure/Snet.Edge.Infrastructure.csproj" />
+    <Project Path="src/Snet.Edge.WebApi/Snet.Edge.WebApi.csproj" />
+    <Project Path="src/Snet.Edge.Watchdog/Snet.Edge.Watchdog.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Snet.Edge.Tests/Snet.Edge.Tests.csproj" />
+  </Folder>
+</Solution>

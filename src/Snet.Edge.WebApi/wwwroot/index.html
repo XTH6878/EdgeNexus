@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07101b">
+  <meta name="description" content="EdgeNexus 工业边缘采集网关控制台">
+  <title>EdgeNexus | 工业边缘采集网关</title>
+  <link rel="stylesheet" href="/vendor/element-plus/index.css">
+  <link rel="stylesheet" href="/vendor/element-plus/dark/css-vars.css">
+  <script defer src="/vendor/vue/vue.global.prod.js"></script>
+  <script defer src="/vendor/element-plus/index.full.min.js"></script>
+  <script defer src="/vendor/element-plus-icons/index.iife.min.js"></script>
+  <script defer src="/vendor/signalr/signalr.min.js"></script>
+  <script defer src="/app.js"></script>
+  
+  <style>
+    :root {
+      color-scheme: dark;
+      --edge-bg: #060b12;
+      --edge-bg-raised: #09111c;
+      --edge-surface: #0d1724;
+      --edge-surface-2: #111e2d;
+      --edge-border: #1d3045;
+      --edge-border-strong: #294762;
+      --edge-primary: #38bdf8;
+      --edge-primary-strong: #0ea5e9;
+      --edge-accent: #2dd4bf;
+      --edge-success: #34d399;
+      --edge-warning: #fbbf24;
+      --edge-danger: #fb7185;
+      --edge-text: #e7eef7;
+      --edge-muted: #8293a8;
+      --edge-dim: #526579;
+      --edge-shadow: 0 20px 60px rgba(0, 0, 0, .32);
+      --snet-bg: var(--edge-bg);
+      --snet-surface: var(--edge-surface);
+      --snet-border: var(--edge-border);
+      --snet-primary: var(--edge-primary);
+      --snet-success: var(--edge-success);
+      --snet-warning: var(--edge-warning);
+      --snet-danger: var(--edge-danger);
+      --el-color-primary: var(--edge-primary-strong);
+      --el-color-success: var(--edge-success);
+      --el-color-warning: var(--edge-warning);
+      --el-color-danger: var(--edge-danger);
+      --el-bg-color: var(--edge-surface);
+      --el-bg-color-overlay: #101b29;
+      --el-border-color: var(--edge-border);
+      --el-border-color-light: #182a3d;
+      --el-fill-color-blank: #0b1521;
+      --el-text-color-primary: var(--edge-text);
+      --el-text-color-regular: #b7c4d4;
+    }
+
+    * { box-sizing: border-box; }
+    html, body, #app { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--edge-text);
+      background:
+        radial-gradient(circle at 15% -10%, rgba(14, 165, 233, .12), transparent 34%),
+        var(--edge-bg);
+      font-family: Inter, "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    button, input, textarea, select { font: inherit; }
+    ::selection { color: #fff; background: rgba(14, 165, 233, .45); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #294058; border: 2px solid transparent; border-radius: 99px; background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background: #36546f; background-clip: padding-box; }
+
+    [v-cloak] { display: grid; place-items: center; background: var(--edge-bg); }
+    [v-cloak] > * { display: none !important; }
+    [v-cloak]::after {
+      content: "EdgeNexus  ·  SYSTEM INITIALIZING";
+      color: var(--edge-muted);
+      font: 600 12px/1.4 "Cascadia Mono", Consolas, monospace;
+      letter-spacing: .2em;
+    }
+
+    .login-container {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 100vw;
+      height: 100vh;
+      padding: 32px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(14, 165, 233, .11), transparent 34%),
+        linear-gradient(145deg, #08111c 0%, #04080e 68%);
+    }
+    .login-container::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      pointer-events: none;
+      opacity: .48;
+      background-image:
+        linear-gradient(rgba(56, 189, 248, .055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, .055) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, black, transparent 84%);
+    }
+    .login-container::after {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: min(900px, 88vw);
+      height: 1px;
+      content: "";
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, transparent, var(--edge-primary), transparent);
+      box-shadow: 0 0 28px rgba(56, 189, 248, .7);
+    }
+    .login-card {
+      position: relative;
+      z-index: 1;
+      width: min(440px, 100%);
+      padding: 44px;
+      overflow: hidden;
+      border: 1px solid rgba(83, 122, 157, .38);
+      border-radius: 16px;
+      background: linear-gradient(160deg, rgba(17, 30, 45, .96), rgba(8, 16, 27, .96));
+      box-shadow: var(--edge-shadow), inset 0 1px 0 rgba(255, 255, 255, .035);
+    }
+    .login-card::before {
+      position: absolute;
+      inset: 0 0 auto;
+      height: 2px;
+      content: "";
+      background: linear-gradient(90deg, transparent, var(--edge-primary), var(--edge-accent), transparent);
+    }
+    .login-logo { margin-bottom: 34px; text-align: left; }
+    .brand-lockup { display: flex; align-items: center; gap: 15px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
+      color: #dff7ff;
+      border: 1px solid rgba(56, 189, 248, .55);
+      border-radius: 12px;
+      background: linear-gradient(145deg, rgba(14, 165, 233, .22), rgba(45, 212, 191, .08));
+      box-shadow: inset 0 0 18px rgba(56, 189, 248, .12), 0 0 24px rgba(14, 165, 233, .12);
+      font: 800 14px/1 "Cascadia Mono", Consolas, monospace;
+      letter-spacing: -.08em;
+    }
+    .brand-copy h1 { margin: 0; color: #f4f9ff; font-size: 27px; font-weight: 720; letter-spacing: -.035em; }
+    .brand-edition { margin-top: 4px; color: var(--edge-primary); font: 650 10px/1.4 "Cascadia Mono", Consolas, monospace; letter-spacing: .18em; }
+    .login-intro { margin: 20px 0 0; color: var(--edge-muted); font-size: 13px; line-height: 1.7; }
+    .security-strip { display: flex; align-items: center; gap: 8px; margin-top: 28px; color: var(--edge-dim); font-size: 11px; }
+    .security-strip::before { width: 6px; height: 6px; content: ""; border-radius: 50%; background: var(--edge-success); box-shadow: 0 0 10px rgba(52, 211, 153, .7); }
+    .login-btn {
+      width: 100%;
+      height: 46px;
+      border: 0 !important;
+      border-radius: 8px !important;
+      color: #03111b !important;
+      background: linear-gradient(110deg, var(--edge-primary-strong), var(--edge-accent)) !important;
+      box-shadow: 0 12px 30px rgba(14, 165, 233, .18);
+      font-size: 14px;
+      font-weight: 750;
+      letter-spacing: .12em;
+      transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+    }
+    .login-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 16px 34px rgba(14, 165, 233, .26); }
+
+    .header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 66px;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--edge-border);
+      background: rgba(7, 14, 23, .94);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .16);
+    }
+    .header-title { display: flex; align-items: center; min-width: 230px; color: var(--edge-text); }
+    .header-brand-name { color: #f2f7fc; font-size: 18px; font-weight: 760; letter-spacing: -.02em; }
+    .header-brand-sub { margin-top: 2px; color: var(--edge-dim); font: 600 9px/1.2 "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
+    .header-tools { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-version-button {
+      min-width: 106px;
+      color: #ffffff !important;
+      border: 1px solid #67d3ff !important;
+      background: linear-gradient(115deg, #0369a1, #0ea5e9) !important;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, .16) inset, 0 7px 20px rgba(14, 165, 233, .28) !important;
+      font-weight: 760 !important;
+      letter-spacing: .02em;
+    }
+    .header-version-button:hover,
+    .header-version-button:focus-visible {
+      color: #ffffff !important;
+      border-color: #b8ebff !important;
+      background: linear-gradient(115deg, #0284c7, #22b8f0) !important;
+      box-shadow: 0 0 0 2px rgba(125, 211, 252, .24), 0 9px 24px rgba(14, 165, 233, .38) !important;
+    }
+    .engine-control { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 1px solid var(--edge-border); border-radius: 8px; background: #09131f; }
+    .engine-label { color: var(--edge-muted); font-size: 11px; font-weight: 650; white-space: nowrap; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 11px;
+      color: #aab8c8;
+      border: 1px solid var(--edge-border);
+      border-radius: 7px;
+      background: #08111b;
+      font: 600 11px/1 "Cascadia Mono", Consolas, monospace;
+      white-space: nowrap;
+    }
+
+    .main-layout { display: flex; height: calc(100vh - 66px); min-width: 0; }
+    .sidebar { position: relative; width: 244px; flex: 0 0 244px; border-right: 1px solid var(--edge-border); background: linear-gradient(180deg, #09121d, #070d15); }
+    .sidebar::after { position: absolute; inset: 0 0 0 auto; width: 1px; content: ""; background: linear-gradient(transparent, rgba(56, 189, 248, .18), transparent); }
+    .sidebar-section-label { padding: 24px 22px 10px; color: var(--edge-dim); font: 650 9px/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .18em; }
+    .sidebar-meta { position: absolute; right: 18px; bottom: 18px; left: 18px; padding: 13px 14px; border: 1px solid #17283a; border-radius: 9px; background: rgba(13, 23, 36, .7); }
+    .sidebar-meta-title { color: #9fb0c3; font: 650 10px/1.3 "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+    .sidebar-meta-value { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: var(--edge-success); font-size: 11px; }
+    .sidebar-meta-value::before { width: 6px; height: 6px; content: ""; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    .el-menu { border-right: 0 !important; background: transparent !important; }
+    .sidebar .el-menu-item { height: 48px; margin: 3px 10px; padding: 0 13px !important; border-radius: 8px; color: #8999ab !important; transition: color .16s ease, background-color .16s ease; }
+    .sidebar .el-menu-item:hover { color: #d7e3ef !important; background: rgba(40, 69, 96, .22) !important; }
+    .sidebar .el-menu-item.is-active { color: #e9f8ff !important; background: linear-gradient(90deg, rgba(14, 165, 233, .18), rgba(14, 165, 233, .05)) !important; box-shadow: inset 2px 0 var(--edge-primary); }
+    .sidebar .el-menu-item .el-icon { color: currentColor; font-size: 17px; }
+
+    .content {
+      min-width: 0;
+      flex: 1;
+      padding: 28px clamp(22px, 2.2vw, 38px) 46px;
+      overflow: auto;
+      background:
+        linear-gradient(rgba(255, 255, 255, .012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .012) 1px, transparent 1px),
+        var(--edge-bg);
+      background-size: 32px 32px;
+    }
+    .content > div { max-width: 1800px; margin: 0 auto; }
+    .content h2 { margin: 0 0 24px !important; color: #f1f6fb !important; font-size: 23px; font-weight: 680 !important; letter-spacing: -.025em; }
+    .content h2::after { display: block; width: 34px; height: 2px; margin-top: 11px; content: ""; border-radius: 2px; background: linear-gradient(90deg, var(--edge-primary), var(--edge-accent)); }
+    .kpi-card { min-height: 128px; overflow: hidden; border: 1px solid var(--edge-border) !important; border-radius: 12px !important; background: linear-gradient(145deg, rgba(17, 30, 45, .92), rgba(10, 19, 30, .92)) !important; box-shadow: 0 10px 34px rgba(0, 0, 0, .14); }
+    .kpi-card .el-card__body { position: relative; padding: 23px 24px; }
+    .kpi-card .el-card__body::after { position: absolute; top: 0; right: 0; width: 78px; height: 78px; content: ""; border-radius: 0 0 0 100%; background: radial-gradient(circle at top right, rgba(56, 189, 248, .12), transparent 70%); }
+    .kpi-value { margin: 0 0 8px; color: #f5f9fd; font: 720 31px/1 "Cascadia Mono", Consolas, monospace; letter-spacing: -.05em; }
+    .kpi-label { margin: 0; color: var(--edge-muted); font-size: 12px; }
+
+    .el-card, .setting-card, .dashboard-group-card, .param-box { border-color: var(--edge-border) !important; background: var(--edge-surface) !important; }
+    .setting-card { width: 100%; max-width: 760px; padding: 26px; border: 1px solid var(--edge-border); border-radius: 12px; box-shadow: 0 16px 44px rgba(0, 0, 0, .16); }
+    .dashboard-group-card { margin-bottom: 14px; padding: 3px 18px; border: 1px solid var(--edge-border); border-radius: 11px; background: linear-gradient(145deg, #0e1926, #0a131e) !important; transition: border-color .16s ease, transform .16s ease; }
+    .dashboard-group-card:hover { border-color: var(--edge-border-strong) !important; transform: translateY(-1px); }
+    .param-box { margin-bottom: 16px; padding: 16px 18px; border: 1px solid var(--edge-border); border-left: 2px solid var(--edge-primary) !important; border-radius: 9px; }
+    .point-guide { margin: -2px 0 15px; border-block: 1px solid #20384e; background: linear-gradient(90deg, rgba(14, 165, 233, .055), transparent 65%); }
+    .point-guide-main { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(560px, 2.2fr); gap: 22px; padding: 13px 4px; }
+    .point-guide-title { display: flex; align-items: center; gap: 8px; color: #dff5ff; font-size: 13px; font-weight: 730; }
+    .point-guide-title::before { width: 7px; height: 7px; content: ""; border-radius: 50%; background: var(--edge-primary); box-shadow: 0 0 9px rgba(56, 189, 248, .72); }
+    .point-guide-summary { margin-top: 7px; color: #8fa5b9; font-size: 11px; line-height: 1.6; }
+    .point-guide-examples { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 1px; border: 1px solid #20384e; background: #20384e; }
+    .point-guide-example { min-width: 0; padding: 9px 10px; border: 0; color: inherit; background: #0a1723; text-align: left; cursor: pointer; transition: background-color .15s ease; }
+    .point-guide-example:hover, .point-guide-example:focus-visible { outline: 0; background: #10283a; }
+    .point-guide-address { overflow: hidden; color: #75d6ff; font: 700 12px/1.3 "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .point-guide-meta { margin-top: 4px; overflow: hidden; color: #8298ad; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .point-guide-notes { display: flex; flex-wrap: wrap; gap: 7px 18px; padding: 0 4px 11px; color: #a8bacb; font-size: 10px; line-height: 1.55; }
+    .point-guide-note::before { margin-right: 6px; color: var(--edge-warning); content: "◆"; font-size: 7px; }
+
+    .el-table {
+      overflow: hidden;
+      border-radius: 10px;
+      --el-table-bg-color: transparent !important;
+      --el-table-tr-bg-color: #0c1622 !important;
+      --el-table-row-hover-bg-color: #122335 !important;
+      --el-table-border-color: var(--edge-border) !important;
+      --el-table-header-bg-color: #101d2b !important;
+      --el-table-header-text-color: #9fb0c4 !important;
+      --el-table-text-color: #c8d4e1 !important;
+    }
+    .el-table th.el-table__cell { height: 44px; font-size: 11px; font-weight: 720; letter-spacing: .04em; }
+    .el-table td.el-table__cell { height: 46px; }
+    .el-table .cell { line-height: 1.45; }
+    .el-input__wrapper, .el-textarea__inner, .el-select__wrapper, .el-input-number { border-radius: 7px !important; box-shadow: 0 0 0 1px var(--edge-border) inset !important; background: #08121d !important; }
+    .el-input__wrapper:hover, .el-select__wrapper:hover { box-shadow: 0 0 0 1px var(--edge-border-strong) inset !important; }
+    .el-button { border-radius: 7px; font-weight: 620; }
+    .el-button--primary:not(.is-link) { border-color: #0ea5e9; background: linear-gradient(115deg, #0284c7, #0ea5e9); }
+    .el-dialog, .el-drawer { border: 1px solid var(--edge-border); background: #0b1521 !important; box-shadow: var(--edge-shadow); }
+    .el-dialog { border-radius: 13px; }
+    .el-dialog__header, .el-drawer__header { border-bottom: 1px solid var(--edge-border); padding-bottom: 17px; }
+    .el-overlay { background: rgba(1, 5, 10, .72) !important; }
+    .el-collapse { border: 0; }
+    .el-collapse-item__header { height: 56px; border: 0 !important; color: var(--edge-primary) !important; background: transparent !important; font-size: 14px; }
+    .el-collapse-item__wrap { border: 0 !important; background: transparent !important; }
+    .el-tag { border-radius: 5px; font-weight: 600; }
+    .el-divider { border-color: var(--edge-border); }
+    .status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; }
+    .status-online { background: var(--edge-success); box-shadow: 0 0 8px rgba(52, 211, 153, .7); }
+    .status-degraded { background: var(--edge-warning); box-shadow: 0 0 8px rgba(251, 191, 36, .65); }
+    .status-offline { background: var(--edge-danger); box-shadow: 0 0 8px rgba(251, 113, 133, .58); }
+    .val-raw { color: var(--edge-muted); font: 13px/1.4 "Cascadia Mono", Consolas, monospace; }
+    .val-final { color: var(--edge-success); font: 700 14px/1.4 "Cascadia Mono", Consolas, monospace; }
+    .network-section { margin-bottom: 22px; padding: 22px; border: 1px solid var(--edge-border); border-radius: 12px; background: linear-gradient(145deg, rgba(14, 26, 39, .96), rgba(8, 17, 27, .96)); box-shadow: 0 14px 38px rgba(0, 0, 0, .14); }
+    .network-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .network-section-title { color: #eaf3fb; font-size: 15px; font-weight: 700; }
+    .network-section-subtitle { margin-top: 5px; color: var(--edge-muted); font-size: 12px; line-height: 1.6; }
+    .mqtt-page-layout { display: grid; grid-template-columns: minmax(460px, .82fr) minmax(520px, 1.18fr); align-items: start; gap: 22px; }
+    .mqtt-runtime-panel { margin-bottom: 22px; padding: 15px 16px; border: 1px solid #29455e; border-left: 3px solid var(--edge-primary); border-radius: 9px; background: linear-gradient(115deg, rgba(14, 165, 233, .09), rgba(8, 18, 29, .88)); }
+    .mqtt-runtime-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .mqtt-runtime-title { color: #e8f4fc; font-size: 13px; font-weight: 720; }
+    .mqtt-runtime-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; color: #91a6b9; font: 11px/1.55 "Cascadia Mono", Consolas, monospace; }
+    .mqtt-runtime-error { margin-top: 11px; color: #ffb0bd; font-size: 11px; line-height: 1.55; word-break: break-word; }
+    .mqtt-port-input { width: 100% !important; }
+    .mqtt-actions { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+    .device-error-code-panel { margin-top: 4px; padding: 16px; border: 1px solid #29445d; border-left: 3px solid var(--edge-warning); border-radius: 9px; background: linear-gradient(145deg, rgba(251,191,36,.045), rgba(7,18,29,.94)); }
+    .device-error-code-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 13px; }
+    .device-error-code-title { color: #ffe8a3; font-size: 14px; font-weight: 760; letter-spacing: .01em; }
+    .device-error-code-help { margin-top: 5px; color: #b7c9d8; font-size: 10px; line-height: 1.55; }
+    .device-error-code-link { color: #fff7d6 !important; border-color: #e5b84d !important; background: rgba(229,184,77,.12) !important; font-weight: 700 !important; }
+    .device-error-code-link:hover { color: #111b24 !important; border-color: #ffe39a !important; background: #ffe39a !important; }
+    .device-error-code-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
+    .device-error-code-card { min-width: 0; padding: 11px; border: 1px solid #253b50; border-radius: 7px; background: #081521; }
+    .device-error-code-card.normal { border-color: #245143; background: rgba(52,211,153,.045); }
+    .device-error-code-card.failure { border-color: #633342; background: rgba(251,113,133,.045); }
+    .device-error-code-card label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: #cad8e4; font-size: 10px; font-weight: 650; }
+    .device-error-code-card label span { color: #60798e; font: 9px/1 "Cascadia Mono", Consolas, monospace; }
+    .device-error-code-card .el-input-number { width: 100%; }
+    .device-error-code-card small { display: block; margin-top: 7px; color: #647d91; font-size: 9px; }
+    .device-error-code-rule { margin-top: 11px; color: #73899d; font-size: 9px; line-height: 1.6; }
+    .device-error-code-rule strong { color: #f1d27a; }
+    .mqtt-status-template-summary { color: #9edcf4; font: 10px/1.45 "Cascadia Mono", Consolas, monospace; }
+    .mqtt-template-dialog { max-width: 1420px; margin-top: 4vh !important; --el-dialog-bg-color: #08131f; }
+    .mqtt-template-dialog .el-dialog__header { margin: 0; padding: 17px 22px; background: linear-gradient(90deg, rgba(14,165,233,.08), transparent 58%); }
+    .mqtt-template-dialog .el-dialog__body { padding: 0; }
+    .mqtt-template-dialog .el-dialog__footer { padding: 14px 22px; border-top: 1px solid var(--edge-border); background: #08131f; }
+    .mqtt-template-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-right: 34px; }
+    .mqtt-template-title-lockup { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .mqtt-template-title-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid #25617e; border-radius: 9px; color: #7ddfff; background: linear-gradient(145deg, #11324a, #0a1d2d); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+    .mqtt-template-dialog-title { color: #f3f8fc; font-size: 17px; font-weight: 760; letter-spacing: .01em; }
+    .mqtt-template-dialog-subtitle { margin-top: 3px; color: #7f95a9; font-size: 11px; }
+    .mqtt-template-dialog-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .mqtt-template-layout { display: grid; grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr); height: min(690px, calc(100vh - 190px)); min-height: 500px; background: #07111b; }
+    .mqtt-template-column { min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #25455f #08131f; scrollbar-width: thin; }
+    .mqtt-template-column + .mqtt-template-column { border-left: 1px solid #20364a; }
+    .mqtt-template-column-inner { padding: 20px; }
+    .mqtt-config-section { margin-bottom: 15px; padding: 17px; border: 1px solid #20384e; border-radius: 10px; background: linear-gradient(145deg, rgba(13,27,42,.98), rgba(8,19,30,.98)); box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
+    .mqtt-config-section:last-child { margin-bottom: 0; }
+    .mqtt-config-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+    .mqtt-config-section-title { display: flex; align-items: center; gap: 9px; color: #eaf4fc; font-size: 13px; font-weight: 730; }
+    .mqtt-config-step { color: #55cbfa; font: 700 10px/1 "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+    .mqtt-config-section-help { margin-top: 5px; color: #71879b; font-size: 11px; line-height: 1.55; }
+    .mqtt-config-count { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #28475f; border-radius: 5px; color: #87cfee; background: #0b2131; font: 700 10px/1 "Cascadia Mono", Consolas, monospace; }
+    .mqtt-template-basic-grid { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 13px; }
+    .mqtt-template-control label { display: block; margin-bottom: 7px; color: #9aafc2; font-size: 11px; }
+    .mqtt-template-format { grid-column: 1 / -1; }
+    .mqtt-format-switch { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; }
+    .mqtt-format-switch .el-radio-button { width: 100%; }
+    .mqtt-format-switch .el-radio-button__inner { width: 100%; padding-block: 11px; border-color: #284157 !important; color: #9eb2c5; background: #081521; box-shadow: none !important; }
+    .mqtt-format-switch .el-radio-button__original-radio:checked + .el-radio-button__inner { color: #dbf6ff; border-color: #168bc0 !important; background: linear-gradient(115deg, #0b5f88, #0b769f); }
+    .mqtt-format-description { margin-top: 8px; color: #7890a4; font-size: 10px; line-height: 1.55; }
+    .mqtt-template-switch-card { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; }
+    .mqtt-device-status-config { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr); align-items: start; gap: 12px; }
+    .mqtt-status-prefix-control { min-width: 0; padding: 12px; border: 1px solid #25435a; border-radius: 8px; background: #081521; }
+    .mqtt-device-status-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mqtt-field-groups { display: grid; gap: 11px; }
+    .mqtt-field-group { padding: 13px; border: 1px solid #1d3448; border-radius: 8px; background: #081521; }
+    .mqtt-field-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .mqtt-field-group-name { color: #cbd9e5; font-size: 11px; font-weight: 690; }
+    .mqtt-field-group-actions { display: flex; gap: 9px; }
+    .mqtt-field-group-actions button { padding: 0; border: 0; color: #5cbde5; background: transparent; font-size: 10px; cursor: pointer; }
+    .mqtt-field-group-actions button:hover { color: #a6e6ff; }
+    .mqtt-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mqtt-field-option { min-width: 0; padding: 9px 10px; border: 1px solid #1d3448; border-radius: 7px; background: #091827; transition: border-color .15s ease, background-color .15s ease; }
+    .mqtt-field-option:has(.is-checked) { border-color: #246a8d; background: rgba(14,165,233,.075); }
+    .mqtt-field-option .el-checkbox { height: auto; }
+    .mqtt-field-code { color: #bfeaff; font: 700 11px/1.25 "Cascadia Mono", Consolas, monospace; }
+    .mqtt-field-help { margin: 4px 0 0 24px; overflow: hidden; color: #667f94; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .mqtt-template-warning { margin-top: 11px; padding: 9px 11px; border-left: 2px solid var(--edge-warning); color: #d8c17e; background: rgba(251,191,36,.055); font-size: 10px; line-height: 1.55; }
+    .mqtt-custom-empty { padding: 20px 14px; border: 1px dashed #29465d; border-radius: 8px; color: #6f879b; background: rgba(6,15,24,.48); font-size: 11px; line-height: 1.6; text-align: center; }
+    .mqtt-custom-field { margin-bottom: 10px; padding: 12px; border: 1px solid #20384d; border-radius: 8px; background: #071420; }
+    .mqtt-custom-field-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; color: #7f95a8; font: 700 10px/1 "Cascadia Mono", Consolas, monospace; }
+    .mqtt-add-field-button { color: #effaff !important; border-color: #29b6ed !important; background: rgba(14,165,233,.18) !important; font-weight: 750 !important; box-shadow: 0 0 0 1px rgba(41,182,237,.12), 0 3px 12px rgba(14,165,233,.14); }
+    .mqtt-add-field-button:hover { color: #07131d !important; border-color: #8ce4ff !important; background: #8ce4ff !important; }
+    .mqtt-custom-field-grid { display: grid; grid-template-columns: minmax(130px, .72fr) minmax(210px, 1.28fr); gap: 9px; }
+    .mqtt-variable-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; color: #61798e; font-size: 9px; }
+    .mqtt-variable-chip { padding: 3px 6px; border: 1px solid #25445c; border-radius: 4px; color: #7ccce9; background: #0a1c2a; font: 9px/1.2 "Cascadia Mono", Consolas, monospace; cursor: pointer; }
+    .mqtt-variable-chip:hover { border-color: #3183aa; color: #c3f0ff; }
+    .mqtt-test-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .mqtt-test-field { min-width: 0; }
+    .mqtt-test-field-wide { grid-column: 1 / -1; }
+    .mqtt-test-field label { display: block; margin-bottom: 6px; color: #8399ad; font-size: 10px; }
+    .mqtt-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+    .mqtt-preview-status { display: flex; align-items: center; gap: 7px; color: #78d8fa; font-size: 10px; }
+    .mqtt-preview-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--edge-success); box-shadow: 0 0 7px rgba(52,211,153,.72); }
+    .mqtt-preview-status-dot.loading { background: var(--edge-warning); box-shadow: 0 0 7px rgba(251,191,36,.65); }
+    .mqtt-preview-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .mqtt-preview-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .mqtt-preview-metric { padding: 9px 10px; border: 1px solid #20394e; border-radius: 7px; background: #081621; }
+    .mqtt-preview-metric-label { color: #60798f; font-size: 9px; letter-spacing: .04em; }
+    .mqtt-preview-metric-value { margin-top: 5px; overflow: hidden; color: #d4e4ef; font: 700 11px/1.3 "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .mqtt-topic-preview { margin-bottom: 10px; padding: 11px 12px; border: 1px solid #235345; border-left: 3px solid var(--edge-success); border-radius: 7px; color: #b8f5dc; background: rgba(52,211,153,.055); font: 11px/1.55 "Cascadia Mono", Consolas, monospace; word-break: break-all; }
+    .mqtt-topic-preview-label { display: block; margin-bottom: 4px; color: #5faf92; font: 700 9px/1 "Inter", sans-serif; letter-spacing: .08em; }
+    .mqtt-template-preview-shell { position: relative; min-height: 300px; overflow: hidden; border: 1px solid #254159; border-radius: 9px; background: #040b12; }
+    .mqtt-template-preview { min-height: 300px; max-height: 410px; margin: 0; padding: 17px 18px; overflow: auto; color: #8de1ff; background: radial-gradient(circle at top right, rgba(14,165,233,.055), transparent 34%), #040b12; font: 11px/1.68 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .mqtt-template-preview.loading { opacity: .58; }
+    .mqtt-preview-loading { position: absolute; top: 12px; right: 13px; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #34536b; border-radius: 5px; color: #9bdfff; background: rgba(6,18,29,.9); font-size: 9px; }
+    .mqtt-test-result { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 11px 12px; border: 1px solid #285240; border-radius: 7px; color: #aee9ce; background: rgba(52,211,153,.055); font-size: 10px; line-height: 1.55; }
+    .mqtt-test-result.error { border-color: #653242; color: #ffc0ca; background: rgba(251,113,133,.055); }
+    .mqtt-template-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .mqtt-template-footer-state { min-width: 0; color: #748a9d; font-size: 10px; line-height: 1.5; }
+    .mqtt-template-footer-state.valid { color: #73cbaa; }
+    .mqtt-template-footer-actions { display: flex; flex: 0 0 auto; gap: 9px; }
+    .network-binding-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .network-binding-card { padding: 17px; border: 1px solid var(--edge-border); border-radius: 10px; background: #091521; }
+    .network-binding-name { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; color: #dce9f5; font-size: 13px; font-weight: 700; }
+    .network-binding-current { margin-top: 11px; padding: 9px 10px; border-left: 2px solid var(--edge-primary); color: #91a4b8; background: rgba(14, 165, 233, .06); font: 11px/1.55 "Cascadia Mono", Consolas, monospace; }
+    .network-preline { white-space: pre-line; font: 12px/1.55 "Cascadia Mono", Consolas, monospace; }
+    .diagnostic-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+    .diagnostic-field { min-width: 180px; flex: 1; }
+    .diagnostic-field label { display: block; margin-bottom: 7px; color: var(--edge-muted); font-size: 11px; }
+    .diagnostic-result { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; padding: 16px; border: 1px solid var(--edge-border); border-radius: 9px; background: #07111b; }
+    .diagnostic-metric-label { color: var(--edge-dim); font-size: 10px; letter-spacing: .08em; }
+    .diagnostic-metric-value { margin-top: 6px; color: #dce8f4; font: 650 12px/1.5 "Cascadia Mono", Consolas, monospace; word-break: break-all; }
+    .revision-dialog { --el-dialog-bg-color: #091522; }
+    .revision-dialog .el-dialog__title { color: #f4f9ff; font-size: 18px; font-weight: 760; }
+    .revision-layout { display: grid; grid-template-columns: minmax(400px, .92fr) minmax(500px, 1.08fr); gap: 18px; min-height: 540px; }
+    .revision-panel { min-width: 0; padding: 18px; border: 1px solid #29445e; border-radius: 11px; background: #0b1927; box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
+    .revision-panel-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; color: #f0f6fc; font-size: 15px; font-weight: 750; }
+    .revision-table { font-size: 13px; --el-table-text-color: #e2ebf4 !important; --el-table-header-text-color: #c2d1df !important; --el-table-row-hover-bg-color: #183149 !important; }
+    .revision-table th.el-table__cell { font-size: 12px; background: #132538 !important; }
+    .revision-table td.el-table__cell { height: 50px; background: #0d1c2b !important; }
+    .revision-table .el-table__row.current-row > td.el-table__cell { color: #fff !important; background: #17415f !important; box-shadow: inset 3px 0 var(--edge-primary); }
+    .revision-table .revision-version { color: #77d5ff; font: 750 14px/1 "Cascadia Mono", Consolas, monospace; }
+    .revision-empty { display: grid; height: 100%; min-height: 360px; place-items: center; color: #a9bacb; font-size: 13px; line-height: 1.7; text-align: center; }
+    .revision-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+    .revision-summary-card { padding: 14px; border: 1px solid #29445e; border-radius: 8px; background: #102235; }
+    .revision-summary-label { color: #a9bacb; font-size: 12px; font-weight: 650; }
+    .revision-summary-value { margin-top: 8px; color: #f1f6fb; font: 720 14px/1.45 "Cascadia Mono", Consolas, monospace; }
+    .revision-change-positive { color: var(--edge-success); }
+    .revision-change-negative { color: var(--edge-danger); }
+    .revision-change-modified { color: var(--edge-warning); }
+    .revision-reason { margin-top: 14px; padding: 13px 15px; border-left: 3px solid var(--edge-primary); color: #d4e0eb; background: rgba(14, 165, 233, .1); font-size: 13px; line-height: 1.7; }
+    .revision-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+    .siemens-profile-hint { margin: 0 0 16px 110px; padding: 11px 13px; border: 1px solid #28506d; border-left: 3px solid var(--edge-primary); border-radius: 7px; color: #c5d8e8; background: #0c2030; font-size: 12px; line-height: 1.65; }
+    .connection-diagnostic { margin: 5px 0 0 110px; padding: 14px; border: 1px solid #29445e; border-radius: 9px; background: #081521; }
+    .connection-diagnostic-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; color: #edf6fd; font-size: 13px; font-weight: 720; }
+    .connection-step { display: grid; grid-template-columns: 94px 1fr auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #193047; color: #c8d6e3; font-size: 12px; }
+    .connection-step-detail { min-width: 0; word-break: break-word; }
+    .connection-step-duration { color: #8095a9; font: 11px/1 "Cascadia Mono", Consolas, monospace; }
+    .connection-recommendation { margin-top: 11px; padding: 10px 12px; color: #f4d889; border-radius: 6px; background: rgba(251, 191, 36, .08); font-size: 12px; line-height: 1.65; }
+
+    @media (max-width: 1500px) {
+      .status-badge:first-of-type { display: none; }
+      .header { padding-inline: 18px; }
+      .mqtt-page-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 1100px) {
+      .sidebar { width: 78px; flex-basis: 78px; }
+      .sidebar .el-menu-item span, .sidebar-section-label, .sidebar-meta { display: none; }
+      .sidebar .el-menu-item { justify-content: center; margin-inline: 8px; padding: 0 !important; }
+      .sidebar .el-menu-item .el-icon { margin: 0; font-size: 19px; }
+      .engine-label, .header-brand-sub { display: none; }
+      .network-binding-grid { grid-template-columns: 1fr; }
+      .revision-layout { grid-template-columns: 1fr; }
+      .point-guide-main { grid-template-columns: 1fr; }
+      .point-guide-examples { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+    }
+    @media (max-width: 900px) {
+      .status-badge { display: none; }
+      .mqtt-template-dialog { width: calc(100vw - 20px) !important; margin-top: 10px !important; }
+      .mqtt-template-dialog-head { align-items: flex-start; flex-direction: column; }
+      .mqtt-template-dialog-tags { justify-content: flex-start; }
+      .mqtt-template-layout { display: block; height: auto; max-height: calc(100vh - 190px); min-height: 0; overflow-y: auto; }
+      .mqtt-template-column { overflow: visible; }
+      .mqtt-template-column + .mqtt-template-column { border-top: 1px solid #20364a; border-left: 0; }
+      .mqtt-template-basic-grid, .mqtt-test-grid { grid-template-columns: 1fr; }
+      .device-error-code-grid { grid-template-columns: 1fr; }
+      .mqtt-template-format, .mqtt-test-field-wide { grid-column: auto; }
+      .mqtt-field-grid, .mqtt-custom-field-grid { grid-template-columns: 1fr; }
+      .mqtt-template-footer { align-items: stretch; flex-direction: column; }
+      .mqtt-template-footer-actions { justify-content: flex-end; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" v-cloak>
+    
+    <div v-if="!isLoggedIn" class="login-container">
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="brand-lockup">
+            <div class="brand-mark">EN</div>
+            <div class="brand-copy">
+              <h1>EdgeNexus</h1>
+              <div class="brand-edition">INDUSTRIAL EDGE GATEWAY</div>
+            </div>
+          </div>
+          <p class="login-intro">面向工业现场的高可靠数据采集、边缘计算与北向传输控制台。</p>
+        </div>
+        <el-form @submit.prevent="handleLogin">
+          <el-form-item>
+            <el-input v-model="loginForm.username" placeholder="请输入管理员账号" size="large">
+              <template #prefix><el-icon><User></User></el-icon></template>
+            </el-input>
+          </el-form-item>
+          <el-form-item style="margin-top: 25px;">
+            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password size="large">
+              <template #prefix><el-icon><Lock></Lock></el-icon></template>
+            </el-input>
+          </el-form-item>
+          <el-form-item style="margin-top: 35px; margin-bottom: 10px;">
+            <el-button native-type="submit" type="primary" class="login-btn" :loading="isLoggingIn">
+              {{ isLoggingIn ? '正在验证身份...' : '系统登入' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div class="security-strip">LOCAL SECURE CONSOLE · TLS READY</div>
+      </div>
+    </div>
+
+    <div v-else>
+      <div class="header">
+        <div class="header-title">
+          <div class="brand-mark" style="width:38px;height:38px;border-radius:9px;font-size:11px;">EN</div>
+          <div>
+            <div class="header-brand-name">EdgeNexus</div>
+            <div class="header-brand-sub">INDUSTRIAL EDGE CONTROL</div>
+          </div>
+        </div>
+        <div class="header-tools">
+          <el-button size="small" type="info" plain @click="triggerProjectImport"><el-icon><Upload></Upload></el-icon> 导入工程</el-button>
+          <el-button size="small" type="info" plain @click="exportProject" :loading="isExporting"><el-icon><Download></Download></el-icon> 导出工程</el-button>
+          <el-button size="small" class="header-version-button" @click="openVersionManager"><el-icon><Clock></Clock></el-icon> 版本管理</el-button>
+          <el-button size="small" type="success" plain @click="validateDraft"><el-icon><CircleCheck></CircleCheck></el-icon> 校验草稿</el-button>
+          <el-button size="small" type="warning" @click="publishDraft"><el-icon><Promotion></Promotion></el-icon> 发布生效</el-button>
+          <input type="file" id="project-upload" style="display: none;" accept=".xlsx,.csv" @change="handleImport">
+          <div class="engine-control">
+            <span class="engine-label">采集引擎</span>
+            <el-switch v-model="isCollecting" @change="toggleAcquisition" inline-prompt active-text="RUN" inactive-text="STOP" style="--el-switch-on-color: var(--snet-success); --el-switch-off-color: var(--snet-danger)"></el-switch>
+          </div>
+          <span class="status-badge">CPU {{ resource.cpuPercent?.toFixed(1) || 0 }}% · MEM {{ resource.workingSetMb || 0 }}MB</span>
+          <span class="status-badge" :style="{ borderColor: realtimeConnected ? 'rgba(52,211,153,.32)' : 'rgba(251,191,36,.38)' }">REALTIME&nbsp;<span :style="{ color: realtimeConnected ? 'var(--snet-success)' : 'var(--snet-warning)' }">{{ realtimeConnected ? 'LIVE' : 'RECONNECT' }}</span></span>
+          <span class="status-badge" :style="{ borderColor: mqttConfig.enabled ? 'rgba(52,211,153,.32)' : 'rgba(251,113,133,.32)' }">MQTT&nbsp;<span :style="{ color: mqttConfig.enabled ? 'var(--snet-success)' : 'var(--snet-danger)' }">{{ mqttConfig.enabled ? 'ENABLED' : 'DISABLED' }}</span></span>
+          <el-dropdown @command="handleUserCommand" trigger="click">
+            <span style="color: var(--snet-primary); font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; outline: none;">
+              <el-icon><Avatar></Avatar></el-icon> {{ loginForm.username }} <el-icon><caret-bottom></caret-bottom></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu style="background: var(--snet-surface); border: 1px solid var(--snet-border);">
+                <el-dropdown-item command="changePwd" style="color: #e5eaf3;"><el-icon><Key></Key></el-icon> 修改密码</el-dropdown-item>
+                <el-dropdown-item command="logout" divided style="color: var(--snet-danger);"><el-icon><switch-button></switch-button></el-icon> 安全退出</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
+
+      <div class="main-layout">
+        <div class="sidebar">
+          <div class="sidebar-section-label">OPERATIONS</div>
+          <el-menu :default-active="activeNav" background-color="#0f141a" text-color="#a0aec0" active-text-color="var(--snet-primary)" @select="(i) => activeNav = i">
+            <el-menu-item index="1"><el-icon><Histogram></Histogram></el-icon> <span>设备运行总览</span></el-menu-item>
+            <el-menu-item index="2"><el-icon><Share></Share></el-icon> <span>南向设备数据采集</span></el-menu-item>
+            <el-menu-item index="3"><el-icon><Upload></Upload></el-icon> <span>北向传输配置 (MQTT)</span></el-menu-item>
+            <el-menu-item index="4"><el-icon><Connection></Connection></el-icon> <span>网络配置</span></el-menu-item>
+            <el-menu-item index="5"><el-icon><Setting></Setting></el-icon> <span>系统与高级设置</span></el-menu-item>
+          </el-menu>
+          <div class="sidebar-meta">
+            <div class="sidebar-meta-title">EDGENEXUS CORE</div>
+            <div class="sidebar-meta-value">SYSTEM OPERATIONAL</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div v-if="activeNav === '1'">
+            <h2>全局运行总览</h2>
+            
+            <el-row :gutter="20" style="margin-bottom: 25px;">
+              <el-col :span="8">
+                <el-card shadow="never" class="kpi-card">
+                  <h3 class="kpi-value">{{ totalDevices }}</h3><p class="kpi-label">南向设备总数</p>
+                </el-card>
+              </el-col>
+              <el-col :span="8">
+                <el-card shadow="never" class="kpi-card">
+                  <h3 class="kpi-value" style="color:var(--snet-success)">{{ onlineDevices }}</h3><p class="kpi-label">正常运行（在线）</p>
+                </el-card>
+              </el-col>
+              <el-col :span="8">
+                <el-card shadow="never" class="kpi-card">
+                  <h3 class="kpi-value" style="color:var(--snet-warning)">{{ offlineDevices }}</h3><p class="kpi-label">异常或降级</p>
+                </el-card>
+              </el-col>
+            </el-row>
+
+            <h3 style="color:#dce7f2;font-size:15px;font-weight:650;border-left:2px solid var(--snet-primary);padding-left:10px;margin-bottom:16px;">采集机台状态矩阵</h3>
+            
+            <el-collapse v-model="activeDashboardGroups" style="border: none;">
+                <div v-for="group in groupList" :key="group.id" class="dashboard-group-card">
+                  <el-collapse-item :name="group.id" style="border: none;">
+                    <template #title>
+                      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding-right: 15px;">
+                        <span style="font-weight: bold; color: var(--snet-primary); font-size: 16px;">
+                          <el-icon><Folder></Folder></el-icon> {{ group.name }}
+                        </span>
+                        <el-tag type="info" effect="plain" size="small" style="border-color: var(--snet-border); background: transparent;">
+                          包含 {{ group.children ? group.children.length : 0 }} 台设备
+                        </el-tag>
+                      </div>
+                    </template>
+                    
+                    <div style="padding-bottom: 10px;">
+                      <el-table :data="group.children" border size="small" style="width: 100%">
+                        <el-table-column prop="name" label="设备名称" min-width="160"></el-table-column>
+                        <el-table-column prop="deviceExternalId" label="DeviceId" min-width="180"></el-table-column>
+                        <el-table-column prop="protocol" label="驱动协议" width="140">
+                            <template #default="{ row }"><el-tag type="info" size="small" effect="dark">{{ row.protocol }}</el-tag></template>
+                        </el-table-column>
+                        <el-table-column prop="ipAddress" label="网络节点" width="180"></el-table-column>
+                        <el-table-column label="采集状态" width="140" align="center">
+                          <template #default="{ row }">
+                            <el-tag :type="deviceStatusType(row)" effect="dark" size="small">{{ deviceStatusLabel(row) }}</el-tag>
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="deviceErrorCode" label="错误码" width="90" align="center"></el-table-column>
+                        <el-table-column label="设备健康" width="100" align="center">
+                          <template #default="{ row }">
+                            <el-tag :type="deviceHealthType(row)" effect="dark" size="small">{{ deviceHealthLabel(row) }}</el-tag>
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+                  </el-collapse-item>
+                </div>
+            </el-collapse>
+          </div>
+
+          <div v-if="activeNav === '2'">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 style="margin: 0 !important;">南向设备数据采集</h2>
+              <div style="display: flex; gap: 10px;">
+                <el-button type="primary" @click="openAddGroupModal()"><el-icon><Plus></Plus></el-icon> 新建 MQTT 分组</el-button>
+              </div>
+            </div>
+
+            <el-table 
+                :data="groupList" 
+                style="width: 100%" 
+                row-key="id" 
+                border 
+                default-expand-all>
+                
+                <el-table-column label="节点名称 (组/设备)" width="320">
+                    <template #default="{ row }">
+                        <div style="display: flex; align-items: center;">
+                            <el-icon v-if="row.nodeType === 'group'" color="var(--snet-primary)" size="18"><Folder></Folder></el-icon>
+                            <template v-else>
+                                <span :class="['status-dot', row.status === 1 ? 'status-online' : row.status === 2 ? 'status-degraded' : 'status-offline']"></span>
+                                <el-icon color="var(--snet-success)" size="18" style="margin-right:4px;"><Connection></Connection></el-icon>
+                            </template>
+                            <span style="margin-left: 8px; font-weight: bold; color: #fff;">{{ row.name }}</span>
+                        </div>
+                    </template>
+                </el-table-column>
+                
+                <el-table-column label="通讯参数 (Topic / 驱动&IP)">
+                    <template #default="{ row }">
+                        <el-tag v-if="row.nodeType === 'group'" type="info" effect="dark" style="background: rgba(255,255,255,0.1); border:none;">MQTT: {{ row.topic }}</el-tag>
+                        <span v-else style="font-family: monospace; color: #8b9bb4;">
+                            {{ row.protocol }} | {{ row.ipAddress }}
+                        </span>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="统一频率调度" width="220">
+                    <template #default="{ row }">
+                        <template v-if="row.nodeType === 'group'">
+                            <el-tag type="warning" size="small" effect="plain" style="border-color:var(--snet-warning); color:var(--snet-warning);">⬆️ 上传: {{ row.uploadCycle }}s</el-tag>
+                            <el-tag type="success" size="small" effect="plain" style="border-color:var(--snet-success); color:var(--snet-success); margin-left: 5px;">⬇️ 扫描: {{ row.scanCycle }}ms</el-tag>
+                        </template>
+                        <template v-else>
+                            <span style="color:#8b9bb4; font-size: 12px; font-style: italic;">跟随所在组调度</span>
+                        </template>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="操作" width="340" fixed="right">
+                    <template #default="{ row }">
+                        <template v-if="row.nodeType === 'group'">
+                            <el-button size="small" type="primary" link @click="openAddDeviceModal(row)">添加设备</el-button>
+                            <el-button size="small" type="warning" link @click="openAddGroupModal(row)">编辑组</el-button>
+                            <el-button size="small" type="danger" link @click="deleteGroup(row)">删除</el-button>
+                        </template>
+                        <template v-else>
+                            <el-button size="small" type="info" plain @click="batchCopyDevice(row)" title="批量生成克隆设备">
+                                <el-icon><copy-document></copy-document></el-icon> 复制
+                            </el-button>
+                            <el-button size="small" type="warning" plain @click="openEditDeviceModal(row)" title="修改设备参数">
+                                <el-icon><Edit></Edit></el-icon> 编辑
+                            </el-button>
+                            <el-button size="small" type="primary" style="background: var(--snet-primary); color:#000; border:none; font-weight:bold;" @click="openTagDrawer(row)">
+                                <el-icon><set-up></set-up></el-icon> 点位字典
+                            </el-button>
+                            <el-button size="small" type="danger" link @click="deleteDevice(row)">删除</el-button>
+                        </template>
+                    </template>
+                </el-table-column>
+            </el-table>
+          </div>
+
+          <div v-if="activeNav === '3'">
+            <h2>北向传输配置（MQTT）</h2>
+            <p style="color:#8b9bb4; margin-bottom: 20px;">配置网关对接云端物联网平台 (如 EMQX, 阿里云 IoT) 的核心通道参数。</p>
+            
+            <div class="mqtt-page-layout">
+            <div class="setting-card" style="max-width: none;">
+                <div class="mqtt-runtime-panel">
+                    <div class="mqtt-runtime-head">
+                        <div class="mqtt-runtime-title">MQTT 实际运行状态</div>
+                        <el-tag :type="mqttRuntimeTagType" effect="dark">{{ mqttRuntimeStateLabel }}</el-tag>
+                    </div>
+                    <div class="mqtt-runtime-meta">
+                        <span>生效开关：{{ mqttRuntime.enabled ? '已启用' : '已停用' }}</span>
+                        <span>目标：{{ mqttRuntime.host || '—' }}:{{ mqttRuntime.port || '—' }}</span>
+                        <span v-if="mqttRuntime.connectedAt">连接时间：{{ formatMqttRuntimeTime(mqttRuntime.connectedAt) }}</span>
+                        <span v-if="mqttRuntime.nextRetryAt">下次重连：{{ formatMqttRuntimeTime(mqttRuntime.nextRetryAt) }}</span>
+                    </div>
+                    <div v-if="mqttRuntime.lastError" class="mqtt-runtime-error">最近错误：{{ mqttRuntime.lastError }}</div>
+                </div>
+                <el-form label-width="150px" label-position="left">
+                    <div style="font-weight: bold; color: var(--snet-primary); margin-bottom: 15px;">🔗 MQTT Broker 直连参数</div>
+                    <el-form-item label="期望启用 MQTT"><el-switch v-model="mqttConfig.enabled"></el-switch></el-form-item>
+                    <el-form-item label="网关标识"><el-input v-model="mqttConfig.gatewayId" placeholder="EDGENEXUS_01"></el-input></el-form-item>
+                    <el-form-item label="Broker Host (IP)"><el-input v-model="mqttConfig.host" placeholder="127.0.0.1"></el-input></el-form-item>
+                    <el-form-item label="服务端口"><el-input-number class="mqtt-port-input" v-model="mqttConfig.port" :min="1" :max="65535" :step="1" controls-position="right"></el-input-number></el-form-item>
+                    <el-form-item label="Client ID"><el-input v-model="mqttConfig.clientId" placeholder="EDGENEXUS_GW"></el-input></el-form-item>
+                    <el-form-item label="登录账号"><el-input v-model="mqttConfig.username"></el-input></el-form-item>
+                    <el-form-item label="登录密码"><el-input v-model="mqttConfig.password" type="password" show-password></el-input></el-form-item>
+                    <el-row :gutter="20">
+                        <el-col :span="12"><el-form-item label="TLS 加密"><el-switch v-model="mqttConfig.useTls"></el-switch></el-form-item></el-col>
+                        <el-col :span="12"><el-form-item label="Retain 保留"><el-switch v-model="mqttConfig.retain"></el-switch></el-form-item></el-col>
+                    </el-row>
+                    
+                    <el-divider border-style="dashed"></el-divider>
+                    <div style="font-weight: bold; color: var(--snet-warning); margin-bottom: 15px;">📨 消息发布质量策略</div>
+                    
+                    <el-form-item label="服务质量 (QoS)">
+                        <el-radio-group v-model="mqttConfig.qos">
+                            <el-radio :label="0">QoS 0 (最多发一次，不保证到达)</el-radio><br/>
+                            <el-radio :label="1">QoS 1 (至少发一次，保证到达)</el-radio><br/>
+                            <el-radio :label="2">QoS 2 (只发一次，严格保证)</el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="遗嘱 Topic"><el-input v-model="mqttConfig.lastWillTopic"></el-input></el-form-item>
+                    <el-form-item label="遗嘱载荷"><el-input v-model="mqttConfig.lastWillPayload"></el-input></el-form-item>
+                    <el-divider border-style="dashed"></el-divider>
+                    <div style="font-weight: bold; color: var(--snet-success); margin-bottom: 15px;">🧱 离线缓存与断点续传</div>
+                    <el-form-item label="断点续传"><el-switch v-model="mqttConfig.storeAndForwardEnabled" active-text="开启" inactive-text="关闭"></el-switch></el-form-item>
+                    <el-alert v-if="!mqttConfig.storeAndForwardEnabled" title="关闭后，MQTT 断线期间的数据会被丢弃，不会在设备恢复后补传。" type="warning" :closable="false" style="margin-bottom: 18px;"></el-alert>
+                    <template v-if="mqttConfig.storeAndForwardEnabled">
+                      <el-form-item label="Outbox 容量"><el-input-number v-model="mqttConfig.outboxMaxMessages" :min="1000" :max="5000000" :step="10000"></el-input-number></el-form-item>
+                      <el-form-item label="最大发布重试"><el-input-number v-model="mqttConfig.maxPublishAttempts" :min="1" :max="1000"></el-input-number></el-form-item>
+                      <el-form-item label="补传速率(条/秒)"><el-input-number v-model="mqttConfig.replayMaxMessagesPerSecond" :min="1" :max="10000"></el-input-number></el-form-item>
+                    </template>
+
+                    <el-form-item style="margin-top: 25px;">
+                        <div class="mqtt-actions">
+                            <el-button @click="saveMqtt">仅保存草稿</el-button>
+                            <el-button type="primary" :loading="isApplyingMqtt" @click="applyMqtt">
+                                {{ mqttConfig.enabled ? '应用并启动 MQTT' : '应用并停用 MQTT' }}
+                            </el-button>
+                        </div>
+                    </el-form-item>
+                </el-form>
+            </div>
+            <div class="network-section" style="margin:0; min-width:0;">
+                <div class="network-section-head">
+                <div>
+                  <div class="network-section-title">MQTT 报文模板管理</div>
+                  <div class="network-section-subtitle">系统字段勾选 + 自定义字段，不需要手写JSON。默认预览包含设备状态错误 Tag，模板修改立即热更新。</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                  <el-button type="primary" @click="openMqttTemplateModal()"><el-icon><Plus></Plus></el-icon> 新增模板</el-button>
+                </div>
+              </div>
+              <el-table :data="mqttTemplates" border style="width:100%" empty-text="暂无MQTT模板">
+                <el-table-column label="模板" min-width="190">
+                  <template #default="{ row }">
+                    <div style="color:#eef7ff;font-weight:700;">{{ row.name }}</div>
+                    <div style="color:#71879b;font-size:11px;margin-top:4px;">{{ row.payloadStyle === 'Advantech' ? '默认 d/ts 格式' : '扩展 d/timestamp 格式' }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="类型" width="92" align="center"><template #default="{ row }"><el-tag size="small" :type="row.isBuiltIn ? 'warning' : 'info'">{{ row.isBuiltIn ? '系统' : '自定义' }}</el-tag></template></el-table-column>
+                <el-table-column label="状态" width="86" align="center"><template #default="{ row }"><el-switch v-model="row.enabled" @change="toggleMqttTemplate(row)"></el-switch></template></el-table-column>
+                <el-table-column label="字段" min-width="185">
+                  <template #default="{ row }"><span style="color:#8fa7bb;font-size:11px;">设备 {{ [row.includeDeviceId,row.includeDeviceName,row.includeDeviceIp,row.includeProtocol].filter(Boolean).length }} · 网关 {{ [row.includeGatewayId,row.includeGatewayVersion].filter(Boolean).length }} · 数据 {{ [row.includeTag,row.includeValue,row.includeQuality].filter(Boolean).length }}</span></template>
+                </el-table-column>
+                <el-table-column label="通讯状态" min-width="180"><template #default="{ row }"><span class="mqtt-status-template-summary">{{ row.deviceErrorTagPrefix }}_* · 失败 {{ row.communicationFailureCode }}</span></template></el-table-column>
+                <el-table-column label="操作" width="126" align="center">
+                  <template #default="{ row }">
+                    <el-button type="primary" link @click="editMqttTemplate(row)"><el-icon><Edit></Edit></el-icon> 编辑</el-button>
+                    <el-button type="danger" link :disabled="row.isBuiltIn" @click="deleteMqttTemplate(row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-alert title="Topic 在分组中配置，可使用 ${deviceId}、${deviceName}、${gatewayId}、${line}；最终报文在进入SQLite Outbox前生成。" type="info" :closable="false" style="margin-top:16px;"></el-alert>
+            </div>
+            </div>
+          </div>
+
+          <div v-if="activeNav === '4'">
+            <h2>网络配置</h2>
+            <p style="color:#8b9bb4; margin-bottom: 20px;">读取 Windows / Linux 操作系统网卡状态，并为 PLC、MQTT 与 Web 管理选择业务出口。EdgeNexus 不创建IP、不修改系统网络配置。</p>
+
+            <div class="network-section">
+              <div class="network-section-head">
+                <div>
+                  <div class="network-section-title">系统网卡实时快照</div>
+                  <div class="network-section-subtitle">数据直接来自操作系统；离线网卡仍保留显示，便于排查拔线、交换机及驱动异常。</div>
+                </div>
+                <el-button type="primary" plain :loading="isRefreshingNetwork" @click="refreshNetworkConfiguration"><el-icon><Refresh></Refresh></el-icon> 重新读取网卡</el-button>
+              </div>
+              <el-table :data="networkInterfaces" border style="width:100%" empty-text="操作系统未返回网卡信息">
+                <el-table-column label="状态" width="82" align="center">
+                  <template #default="{ row }"><el-tag :type="row.isOnline ? 'success' : 'danger'" effect="dark" size="small">{{ row.isOnline ? '在线' : '离线' }}</el-tag></template>
+                </el-table-column>
+                <el-table-column label="网卡" min-width="180">
+                  <template #default="{ row }"><div style="color:#eef6fd;font-weight:700;">{{ row.name }}</div><div style="color:#71859a;font-size:11px;margin-top:4px;">{{ row.description || row.interfaceType }}</div></template>
+                </el-table-column>
+                <el-table-column label="IPv4" min-width="145"><template #default="{ row }"><div class="network-preline">{{ (row.ipv4Addresses || []).map(item => item.address).join('\n') || '-' }}</div></template></el-table-column>
+                <el-table-column label="子网掩码" min-width="135"><template #default="{ row }"><div class="network-preline">{{ (row.ipv4Addresses || []).map(item => item.subnetMask || '-').join('\n') || '-' }}</div></template></el-table-column>
+                <el-table-column label="网关" min-width="130"><template #default="{ row }"><div class="network-preline">{{ formatNetworkList(row.gateways) }}</div></template></el-table-column>
+                <el-table-column label="DNS" min-width="145"><template #default="{ row }"><div class="network-preline">{{ formatNetworkList(row.dnsServers) }}</div></template></el-table-column>
+                <el-table-column prop="macAddress" label="MAC" min-width="145"><template #default="{ row }"><span class="network-preline">{{ row.macAddress || '-' }}</span></template></el-table-column>
+                <el-table-column label="地址方式" width="92" align="center"><template #default="{ row }"><el-tag type="info" size="small" effect="plain">{{ dhcpLabel(row.dhcpEnabled) }}</el-tag></template></el-table-column>
+              </el-table>
+            </div>
+
+            <div class="network-section">
+              <div class="network-section-head">
+                <div>
+                  <div class="network-section-title">网络用途绑定</div>
+                  <div class="network-section-subtitle">“自动”表示交给操作系统路由表选择；指定网卡后，PLC与MQTT连接会绑定该网卡IPv4，Web仅允许从指定网卡或本机回环口访问。</div>
+                </div>
+                <el-button type="primary" :loading="isSavingNetwork" @click="saveNetworkConfiguration"><el-icon><Check></Check></el-icon> 保存网络绑定</el-button>
+              </div>
+              <div class="network-binding-grid">
+                <div class="network-binding-card">
+                  <div class="network-binding-name"><el-icon color="var(--snet-success)"><SetUp></SetUp></el-icon> PLC采集网络</div>
+                  <el-select v-model="networkBindings.plcInterfaceId" style="width:100%;" placeholder="自动">
+                    <el-option label="自动（操作系统路由）" :value="null"></el-option>
+                    <el-option v-for="item in bindableNetworkInterfaces" :key="item.id" :label="`${item.name} · ${item.ipv4Addresses?.[0]?.address || '无IPv4'}`" :value="item.id"></el-option>
+                  </el-select>
+                  <div class="network-binding-current">当前：{{ effectiveBinding('PlcAcquisition')?.interfaceName || '未解析' }}<br>IPv4：{{ effectiveBinding('PlcAcquisition')?.ipv4 || '由系统路由决定' }}</div>
+                </div>
+                <div class="network-binding-card">
+                  <div class="network-binding-name"><el-icon color="var(--snet-warning)"><Upload></Upload></el-icon> MQTT上传网络</div>
+                  <el-select v-model="networkBindings.mqttInterfaceId" style="width:100%;" placeholder="自动">
+                    <el-option label="自动（操作系统路由）" :value="null"></el-option>
+                    <el-option v-for="item in bindableNetworkInterfaces" :key="item.id" :label="`${item.name} · ${item.ipv4Addresses?.[0]?.address || '无IPv4'}`" :value="item.id"></el-option>
+                  </el-select>
+                  <div class="network-binding-current">当前：{{ effectiveBinding('MqttUpload')?.interfaceName || '未解析' }}<br>IPv4：{{ effectiveBinding('MqttUpload')?.ipv4 || '由系统路由决定' }}</div>
+                </div>
+                <div class="network-binding-card">
+                  <div class="network-binding-name"><el-icon color="var(--snet-primary)"><Monitor></Monitor></el-icon> Web管理网络</div>
+                  <el-select v-model="networkBindings.webInterfaceId" style="width:100%;" placeholder="自动">
+                    <el-option label="自动（允许所有监听网卡）" :value="null"></el-option>
+                    <el-option v-for="item in bindableNetworkInterfaces" :key="item.id" :label="`${item.name} · ${item.ipv4Addresses?.[0]?.address || '无IPv4'}`" :value="item.id"></el-option>
+                  </el-select>
+                  <div class="network-binding-current">当前：{{ effectiveBinding('WebManagement')?.interfaceName || '未解析' }}<br>本机 127.0.0.1 始终保留为救援入口</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="network-section">
+              <div class="network-section-head">
+                <div>
+                  <div class="network-section-title">现场网络诊断</div>
+                  <div class="network-section-subtitle">诊断使用已绑定的业务网卡。PLC测试调用真实协议驱动，MQTT测试使用当前配置草稿且不会发布业务数据。</div>
+                </div>
+              </div>
+              <el-radio-group v-model="networkDiagnosticType" size="small" style="margin-bottom:18px;">
+                <el-radio-button label="ping">Ping测试</el-radio-button>
+                <el-radio-button label="tcp">TCP端口测试</el-radio-button>
+                <el-radio-button label="mqtt">MQTT连接测试</el-radio-button>
+                <el-radio-button label="plc">PLC连接测试</el-radio-button>
+              </el-radio-group>
+              <div class="diagnostic-toolbar">
+                <div v-if="networkDiagnosticType === 'ping' || networkDiagnosticType === 'tcp'" class="diagnostic-field">
+                  <label>目标主机 / IP</label><el-input v-model="networkDiagnosticForm.host" placeholder="192.168.1.10"></el-input>
+                </div>
+                <div v-if="networkDiagnosticType === 'tcp'" class="diagnostic-field" style="max-width:180px;">
+                  <label>TCP端口</label><el-input-number v-model="networkDiagnosticForm.port" :min="1" :max="65535" controls-position="right" style="width:100%;"></el-input-number>
+                </div>
+                <div v-if="networkDiagnosticType === 'ping' || networkDiagnosticType === 'tcp'" class="diagnostic-field">
+                  <label>使用网络用途</label>
+                  <el-select v-model="networkDiagnosticForm.usage" style="width:100%;"><el-option label="PLC采集网络" value="PlcAcquisition"></el-option><el-option label="MQTT上传网络" value="MqttUpload"></el-option><el-option label="Web管理网络" value="WebManagement"></el-option></el-select>
+                </div>
+                <div v-if="networkDiagnosticType === 'mqtt'" class="diagnostic-field"><label>测试目标</label><el-input :model-value="`${mqttConfig.host}:${mqttConfig.port}（当前MQTT草稿）`" disabled></el-input></div>
+                <div v-if="networkDiagnosticType === 'plc'" class="diagnostic-field"><label>PLC设备</label><el-select v-model="networkDiagnosticForm.deviceId" filterable style="width:100%;" placeholder="选择需要调用驱动测试的设备"><el-option v-for="device in networkDeviceOptions" :key="device.id" :label="`${device.label} · ${device.protocol}`" :value="device.id"></el-option></el-select></div>
+                <div class="diagnostic-field" style="max-width:180px;"><label>超时时间(ms)</label><el-input-number v-model="networkDiagnosticForm.timeoutMs" :min="500" :max="30000" :step="500" controls-position="right" style="width:100%;"></el-input-number></div>
+                <el-button type="primary" :loading="isRunningNetworkDiagnostic" @click="runNetworkDiagnostic"><el-icon><Aim></Aim></el-icon> 执行诊断</el-button>
+              </div>
+              <div v-if="networkDiagnosticResult" class="diagnostic-result">
+                <div><div class="diagnostic-metric-label">RESULT</div><div class="diagnostic-metric-value" :style="{color:networkDiagnosticResult.success ? 'var(--snet-success)' : 'var(--snet-danger)'}">{{ networkDiagnosticResult.success ? 'PASS' : 'FAIL' }} · {{ networkDiagnosticResult.status }}</div></div>
+                <div><div class="diagnostic-metric-label">SOURCE</div><div class="diagnostic-metric-value">{{ networkDiagnosticResult.sourceAddress || '操作系统自动路由' }}</div></div>
+                <div><div class="diagnostic-metric-label">TARGET</div><div class="diagnostic-metric-value">{{ networkDiagnosticResult.target || '-' }}</div></div>
+                <div><div class="diagnostic-metric-label">DURATION / ERROR</div><div class="diagnostic-metric-value">{{ networkDiagnosticResult.durationMs }} ms<span v-if="networkDiagnosticResult.error"><br>{{ networkDiagnosticResult.error }}</span></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="activeNav === '5'">
+            <h2>系统与高级设置</h2>
+            <p style="color:#8b9bb4; margin-bottom: 20px;">查看网关运行资源状态。保护阈值属于启动级配置，避免运行中误改导致保护策略失效。</p>
+
+            <div class="setting-card">
+                <el-form label-width="150px" label-position="left">
+                    <div style="font-weight: bold; color: var(--snet-primary); margin-bottom: 15px;">🛡️ 资源保护与看门狗管控</div>
+                    
+                    <el-form-item label="内存安全阈值 (MB)">
+                        <el-input-number v-model="settings.memLimit" disabled></el-input-number>
+                        <div style="font-size: 12px; color: #8b9bb4; line-height: 1.2; margin-top: 5px; width: 100%;">
+                            通过部署配置 ResourceProtection:MemoryWarningMb 等参数设置，修改后滚动重启生效。
+                        </div>
+                    </el-form-item>
+                    <el-alert :title="`当前资源：CPU ${resource.cpuPercent || 0}% / 内存 ${resource.workingSetMb || 0}MB / 磁盘 ${resource.diskUsedPercent || 0}%`" type="info" :closable="false"></el-alert>
+                    <el-form-item>
+                        <el-button type="primary" @click="refreshRuntime">刷新运行资源状态</el-button>
+                    </el-form-item>
+                </el-form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> 
+
+    <el-dialog v-model="showPwdModal" title="🔑 修改管理员密码" width="400px" class="dark">
+      <el-form label-width="100px" @submit.prevent="savePassword">
+        <el-form-item label="当前密码"><el-input v-model="pwdForm.old" type="password" show-password></el-input></el-form-item>
+        <el-form-item label="新密码"><el-input v-model="pwdForm.new" type="password" show-password></el-input></el-form-item>
+        <el-form-item label="确认新密码"><el-input v-model="pwdForm.confirm" type="password" show-password></el-input></el-form-item>
+        <el-alert title="新密码至少8位，并包含数字和特殊字符，不要求大小写组合。" type="warning" :closable="false"></el-alert>
+      </el-form>
+      <template #footer>
+          <el-button @click="showPwdModal = false">取消</el-button>
+          <el-button type="primary" @click="savePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showVersionManager" title="工程版本管理" width="min(1180px, 96vw)" class="dark revision-dialog" :close-on-click-modal="false">
+      <div class="revision-layout">
+        <section class="revision-panel">
+          <div class="revision-panel-title">
+            <span>历史发布版本</span>
+            <el-button link type="primary" :loading="isLoadingVersions" @click="loadRevisions"><el-icon><Refresh></Refresh></el-icon> 刷新</el-button>
+          </div>
+          <el-table
+            class="revision-table"
+            :data="revisionList"
+            height="475"
+            highlight-current-row
+            row-key="version"
+            v-loading="isLoadingVersions"
+            @current-change="selectRevision">
+            <el-table-column label="版本" width="86">
+              <template #default="{ row }"><span class="revision-version">V{{ row.version }}</span></template>
+            </el-table-column>
+            <el-table-column label="状态" width="78">
+              <template #default="{ row }"><el-tag size="small" :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? '当前' : '历史' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column prop="reason" label="发布说明" min-width="150" show-overflow-tooltip></el-table-column>
+            <el-table-column label="发布时间" width="170">
+              <template #default="{ row }">{{ formatRevisionTime(row.createdAt) }}</template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <section class="revision-panel" v-loading="isLoadingRevisionPreview">
+          <div v-if="selectedRevision && revisionPreview">
+            <div class="revision-panel-title">
+              <span>V{{ selectedRevision.version }} 回滚预检</span>
+              <el-tag :type="revisionPreview.validation.isValid ? 'success' : 'danger'">
+                {{ revisionPreview.validation.isValid ? '校验通过' : '禁止回滚' }}
+              </el-tag>
+            </div>
+
+            <el-alert
+              v-if="selectedRevision.isActive"
+              title="这是当前正在运行的版本，无需回滚。"
+              type="info"
+              :closable="false"></el-alert>
+            <el-alert
+              v-else-if="!revisionPreview.validation.isValid"
+              :title="revisionPreview.validation.errors.join('；')"
+              type="error"
+              show-icon
+              :closable="false"></el-alert>
+            <el-alert
+              v-else
+              :title="`将以 V${selectedRevision.version} 的完整快照创建新版本，不删除任何历史记录。`"
+              type="warning"
+              show-icon
+              :closable="false"></el-alert>
+
+            <div class="revision-summary">
+              <div class="revision-summary-card">
+                <div class="revision-summary-label">分组变化</div>
+                <div class="revision-summary-value"><span class="revision-change-positive">+{{ revisionPreview.impact.groups.added }}</span> / <span class="revision-change-negative">-{{ revisionPreview.impact.groups.removed }}</span> / <span class="revision-change-modified">~{{ revisionPreview.impact.groups.modified }}</span></div>
+              </div>
+              <div class="revision-summary-card">
+                <div class="revision-summary-label">设备变化</div>
+                <div class="revision-summary-value"><span class="revision-change-positive">+{{ revisionPreview.impact.devices.added }}</span> / <span class="revision-change-negative">-{{ revisionPreview.impact.devices.removed }}</span> / <span class="revision-change-modified">~{{ revisionPreview.impact.devices.modified }}</span></div>
+              </div>
+              <div class="revision-summary-card">
+                <div class="revision-summary-label">点位变化</div>
+                <div class="revision-summary-value"><span class="revision-change-positive">+{{ revisionPreview.impact.tags.added }}</span> / <span class="revision-change-negative">-{{ revisionPreview.impact.tags.removed }}</span> / <span class="revision-change-modified">~{{ revisionPreview.impact.tags.modified }}</span></div>
+              </div>
+              <div class="revision-summary-card">
+                <div class="revision-summary-label">MQTT参数</div>
+                <div class="revision-summary-value" :class="revisionPreview.impact.mqttChanged ? 'revision-change-modified' : ''">
+                  {{ revisionPreview.impact.mqttChanged ? '存在变更' : '无变化' }}
+                </div>
+              </div>
+            </div>
+
+            <el-descriptions :column="3" border size="small">
+              <el-descriptions-item label="分组">{{ selectedRevision.groupCount }}</el-descriptions-item>
+              <el-descriptions-item label="设备">{{ selectedRevision.deviceCount }}</el-descriptions-item>
+              <el-descriptions-item label="点位">{{ selectedRevision.tagCount }}</el-descriptions-item>
+              <el-descriptions-item label="目标版本">V{{ revisionPreview.targetVersion }}</el-descriptions-item>
+              <el-descriptions-item label="当前版本">V{{ revisionPreview.activeVersion }}</el-descriptions-item>
+              <el-descriptions-item label="发布人">管理员操作审计</el-descriptions-item>
+            </el-descriptions>
+
+            <div class="revision-reason">发布说明：{{ selectedRevision.reason || '未填写发布说明' }}</div>
+            <el-alert
+              v-if="revisionPreview.validation.warnings.length"
+              :title="revisionPreview.validation.warnings.join('；')"
+              type="warning"
+              :closable="false"
+              style="margin-top: 14px;"></el-alert>
+
+            <div class="revision-actions">
+              <el-button
+                type="danger"
+                plain
+                :loading="isDeletingRevision"
+                :disabled="selectedRevision.isActive || currentRole !== 'Admin'"
+                @click="deleteSelectedRevision">
+                <el-icon><Delete></Delete></el-icon> 删除 V{{ selectedRevision.version }}
+              </el-button>
+              <el-button
+                type="warning"
+                :loading="isRollingBack"
+                :disabled="selectedRevision.isActive || !revisionPreview.validation.isValid || currentRole !== 'Admin'"
+                @click="rollbackSelectedRevision">
+                <el-icon><RefreshLeft></RefreshLeft></el-icon> 回滚到 V{{ selectedRevision.version }}
+              </el-button>
+            </div>
+          </div>
+          <div v-else class="revision-empty">
+            <div><el-icon size="34"><Clock></Clock></el-icon><br><br>从左侧选择版本，系统将先校验并计算配置差异。</div>
+          </div>
+        </section>
+      </div>
+      <template #footer><el-button @click="showVersionManager = false">关闭</el-button></template>
+    </el-dialog>
+
+    <el-drawer v-model="drawerVisible" :title="`[${currentDevice?.name}] - 南向物理点位字典`" size="85%" class="dark" @closed="closeTagDrawer">
+        <div v-if="currentDevice">
+            <div class="param-box">
+                <div style="font-weight: bold; color: var(--snet-primary); font-size: 14px; margin-bottom: 10px;">⚙️ {{ currentDevice.protocol }} 驱动层通信参数 (归属组: {{ currentDevice.groupName }})</div>
+                <el-form :inline="true" label-width="105px" size="small">
+                    <el-form-item label="接收超时(ms)">
+                        <el-input-number v-model="currentDevice.receiveTimeoutMs" :min="100" :max="120000"></el-input-number>
+                    </el-form-item>
+                    <el-form-item v-for="field in currentDeviceProtocolFields" :key="field.name" :label="field.label">
+                        <el-input-number v-if="field.inputType === 'number'" v-model="currentDevice[field.name]" :min="field.minimum" :max="field.maximum"></el-input-number>
+                        <el-select v-else-if="field.inputType === 'select'" v-model="currentDevice[field.name]" style="width: 160px;">
+                            <el-option v-for="option in field.options" :key="option.value" :label="option.label" :value="option.value"></el-option>
+                        </el-select>
+                        <el-switch v-else-if="field.inputType === 'switch'" v-model="currentDevice[field.name]" :active-text="field.label"></el-switch>
+                        <el-input v-else v-model="currentDevice[field.name]" :type="field.inputType === 'password' ? 'password' : 'text'" :placeholder="field.help || field.label" :show-password="field.inputType === 'password'" style="width: 220px;"></el-input>
+                    </el-form-item>
+                </el-form>
+                <el-alert v-if="['Binary1E','Ascii1E'].includes(currentDevice.mitsubishiFormat)" title="A兼容1E帧仅支持TCP；网络号、网络站号和目标IO号不参与通讯。" type="info" :closable="false" show-icon></el-alert>
+            </div>
+
+            <section v-if="currentPointAddressGuide" class="point-guide" aria-label="当前协议点位地址规范">
+                <div class="point-guide-main">
+                    <div>
+                        <div class="point-guide-title">{{ currentProtocolLabel }} 点位地址规范</div>
+                        <div class="point-guide-summary">{{ currentPointAddressGuide.summary }} 点击右侧样例可直接新增点位。</div>
+                    </div>
+                    <div class="point-guide-examples">
+                        <button v-for="example in currentPointAddressGuide.examples" :key="`${example.address}-${example.area}`" type="button" class="point-guide-example" :title="`${example.purpose}，点击新增点位`" @click="addPointFromExample(example)">
+                            <div class="point-guide-address">{{ example.address }}</div>
+                            <div class="point-guide-meta">{{ example.area }} · {{ example.dataType }}<span v-if="example.modbusFunctionCode"> · FC{{ String({ ReadCoils: 1, ReadDiscreteInputs: 2, ReadHoldingRegisters: 3, ReadInputRegisters: 4 }[example.modbusFunctionCode]).padStart(2, '0') }}</span></div>
+                        </button>
+                    </div>
+                </div>
+                <div class="point-guide-notes">
+                    <span v-for="note in currentPointAddressGuide.notes" :key="note" class="point-guide-note">{{ note }}</span>
+                </div>
+            </section>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <el-button type="success" size="small" plain @click="addPoint"><el-icon><Plus></Plus></el-icon> 新增采集变量</el-button>
+                    <el-tooltip content="支持.xlsx/.csv；先预检并载入当前页面，点击保存后才写入草稿" placement="top">
+                        <el-button type="info" size="small" plain :loading="isImportingTags" @click="triggerDeviceTagImport"><el-icon><Upload></Upload></el-icon> 导入点位</el-button>
+                    </el-tooltip>
+                    <el-tooltip content="导出当前设备已保存到草稿的点位，并附带字段说明" placement="top">
+                        <el-button type="info" size="small" plain :loading="isExportingTags" @click="exportDeviceTags"><el-icon><Download></Download></el-icon> 导出点位</el-button>
+                    </el-tooltip>
+                    <el-button type="primary" size="small" :loading="isSavingTags" @click="saveTags">保存设备参数与点位草稿</el-button>
+                    <input type="file" id="device-tag-upload" style="display:none;" accept=".xlsx,.csv" @change="handleDeviceTagImport">
+                </div>
+                <div>
+                    <span v-if="isCollecting" style="color: var(--snet-success); font-size: 13px; font-weight: bold; margin-right: 15px;">⚡ 引擎已启动，数据正在实时刷新...</span>
+                    <span v-else style="color: var(--snet-danger); font-size: 13px; font-weight: bold; margin-right: 15px;">⏸️ 引擎已停止</span>
+                </div>
+            </div>
+
+            <el-table :data="tagList" border size="small" height="calc(100vh - 395px)">
+                <el-table-column label="变量名" width="120"><template #default="{ row }"><el-input v-model="row.name" size="small"></el-input></template></el-table-column>
+                <el-table-column label="点位地址" width="170"><template #default="{ row }"><el-input v-model="row.address" size="small" :placeholder="currentPointAddressGuide?.addressPlaceholder"></el-input></template></el-table-column>
+                
+                <el-table-column label="功能码(Modbus)" width="120" v-if="currentDevice.protocol === 'ModbusTcp'">
+                    <template #default="{ row }">
+                        <el-select v-model="row.functionCode" size="small">
+                            <el-option label="01 (读线圈)" value="ReadCoils"></el-option>
+                            <el-option label="02 (读离散输入)" value="ReadDiscreteInputs"></el-option>
+                            <el-option label="03 (读保持寄存器)" value="ReadHoldingRegisters"></el-option>
+                            <el-option label="04 (读输入寄存器)" value="ReadInputRegisters"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="数据类型" width="100">
+                    <template #default="{ row }">
+                        <el-select v-model="row.dataType" size="small">
+                            <el-option label="Bool" value="Bool"></el-option>
+                            <el-option label="Byte" value="Byte"></el-option>
+                            <el-option label="Int16" value="Int16"></el-option>
+                            <el-option label="UInt16" value="UInt16"></el-option>
+                            <el-option label="Int32" value="Int32"></el-option>
+                            <el-option label="UInt32" value="UInt32"></el-option>
+                            <el-option label="Float32" value="Float32"></el-option>
+                            <el-option label="Float64" value="Float64"></el-option>
+                            <el-option label="String" value="String"></el-option>
+                            <el-option label="BCD码" value="Bcd"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+                
+                <el-table-column label="字节序" width="110">
+                    <template #default="{ row }">
+                            <el-select v-model="row.endian" size="small" :disabled="['Bool', 'Byte', 'String'].includes(row.dataType)">
+                            <el-option label="ABCD (大端)" value="ABCD"></el-option>
+                            <el-option label="CDAB (小端反)" value="CDAB"></el-option>
+                            <el-option label="BADC (大端反)" value="BADC"></el-option>
+                            <el-option label="DCBA (小端)" value="DCBA"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="实时运算 (+ - * /)" width="150">
+                    <template #default="{ row }">
+                        <div style="display: flex; gap:5px;">
+                            <el-select v-model="row.operator" size="small" style="width: 50px;" :disabled="['String', 'Bool', 'Bcd'].includes(row.dataType)">
+                                <el-option label="+" value="+"></el-option>
+                                <el-option label="-" value="-"></el-option>
+                                <el-option label="×" value="*"></el-option>
+                                <el-option label="÷" value="/"></el-option>
+                            </el-select>
+                            <el-input-number v-model="row.operand" size="small" :controls="false" placeholder="值" style="width: 60px;" :disabled="['String', 'Bool', 'BCD'].includes(row.dataType)"></el-input-number>
+                        </div>
+                    </template>
+                </el-table-column>
+                
+                <el-table-column label="保留小数" width="80" align="center">
+                    <template #default="{ row }">
+                        <el-input-number v-model="row.decimals" size="small" :min="0" :max="4" :controls="false" style="width: 50px;" :disabled="['String', 'Bool', 'Bcd'].includes(row.dataType)"></el-input-number>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="变化上传(按周期)" width="115" align="center">
+                    <template #default="{ row }">
+                        <el-tooltip content="仍按分组上传周期调度；开启后，数值未变化时不重复进入MQTT消息。" placement="top">
+                            <el-switch v-model="row.onChange" style="--el-switch-on-color: var(--snet-primary);"></el-switch>
+                        </el-tooltip>
+                    </template>
+                </el-table-column>
+                <el-table-column label="变化阈值" width="100" align="center">
+                    <template #default="{ row }">
+                        <el-input-number v-model="row.deadband" :min="0" :controls="false" size="small" :disabled="!row.onChange" style="width: 72px;"></el-input-number>
+                    </template>
+                </el-table-column>
+                <el-table-column label="质量" width="90" align="center">
+                    <template #default="{ row }">
+                        <el-tooltip :content="row.sampleError || qualityLabel(row.quality)" :disabled="!row.sampleError" placement="top">
+                            <el-tag size="small" :type="row.quality === 'Good' ? 'success' : row.quality === 'ConfigurationError' ? 'danger' : 'warning'">{{ qualityLabel(row.quality) }}</el-tag>
+                        </el-tooltip>
+                    </template>
+                </el-table-column>
+                <el-table-column label="🔴 原始值" width="100"><template #default="{ row }"><span class="val-raw">{{ row.rawVal }}</span></template></el-table-column>
+                <el-table-column label="🟢 上云值" width="100"><template #default="{ row }"><span class="val-final">{{ calcFinalVal(row) }}</span></template></el-table-column>
+                
+                <el-table-column label="备注" min-width="120">
+                    <template #default="{ row }">
+                        <el-input v-model="row.remark" size="small" placeholder="点位说明/用途..."></el-input>
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="操作" width="60" align="center" fixed="right"><template #default="scope"><el-button type="danger" icon="Delete" link size="small" @click="tagList.splice(scope.$index, 1)"></el-button></template></el-table-column>
+            </el-table>
+        </div>
+    </el-drawer>
+
+    <el-dialog v-model="showMqttTemplateModal" width="92%" class="mqtt-template-dialog" destroy-on-close @closed="closeMqttTemplateModal">
+      <template #header>
+        <div class="mqtt-template-dialog-head">
+          <div class="mqtt-template-title-lockup">
+            <div class="mqtt-template-title-icon"><el-icon size="20"><Document></Document></el-icon></div>
+            <div>
+              <div class="mqtt-template-dialog-title">{{ isEditingMqttTemplate ? 'MQTT 报文模板配置' : '创建 MQTT 报文模板' }}</div>
+              <div class="mqtt-template-dialog-subtitle">字段化配置 · 后端正式构建器实时预览 · 保存后立即热更新</div>
+            </div>
+          </div>
+          <div class="mqtt-template-dialog-tags">
+            <el-tag v-if="mqttTemplateForm.isBuiltIn" type="warning" effect="plain">系统模板</el-tag>
+            <el-tag :type="mqttTemplateForm.enabled ? 'success' : 'info'" effect="plain">{{ mqttTemplateForm.enabled ? '已启用' : '已停用' }}</el-tag>
+            <el-tag type="info" effect="plain">{{ mqttTemplateForm.payloadStyle === 'Advantech' ? '默认 d/ts' : '扩展格式' }}</el-tag>
+          </div>
+        </div>
+      </template>
+
+      <div class="mqtt-template-layout">
+        <section class="mqtt-template-column" aria-label="模板结构配置">
+          <div class="mqtt-template-column-inner">
+            <div class="mqtt-config-section">
+              <div class="mqtt-config-section-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">01</span> 基础信息</div>
+                  <div class="mqtt-config-section-help">定义模板身份、报文结构及运行状态。</div>
+                </div>
+              </div>
+              <div class="mqtt-template-basic-grid">
+                <div class="mqtt-template-control">
+                  <label>模板名称</label>
+                  <el-input v-model="mqttTemplateForm.name" maxlength="100" show-word-limit placeholder="例如：一号产线上传模板"></el-input>
+                </div>
+                <div class="mqtt-template-control">
+                  <label>运行状态</label>
+                  <div class="mqtt-template-switch-card">
+                    <span style="color:#8399ad;font-size:11px;">{{ mqttTemplateForm.enabled ? '参与设备解析' : '设备回退默认模板' }}</span>
+                    <el-switch v-model="mqttTemplateForm.enabled"></el-switch>
+                  </div>
+                </div>
+                <div class="mqtt-template-control mqtt-template-format">
+                  <label>报文格式</label>
+                  <el-radio-group v-model="mqttTemplateForm.payloadStyle" class="mqtt-format-switch">
+                    <el-radio-button label="Advantech">默认 d / ts</el-radio-button>
+                    <el-radio-button label="Standard">扩展 d / timestamp</el-radio-button>
+                  </el-radio-group>
+                  <div class="mqtt-format-description">
+                    {{ mqttTemplateForm.payloadStyle === 'Advantech' ? '默认生成 d 数据数组与 ts 时间字段。' : '生成可组合设备、网关、timestamp 时间及自定义字段的扩展报文。' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mqtt-config-section">
+              <div class="mqtt-config-section-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">02</span> 设备通讯状态</div>
+                  <div class="mqtt-config-section-help">每个模板独立定义状态 Tag；系统只输出通讯正常和通讯失败两种状态。</div>
+                </div>
+                <el-tag type="success" effect="plain">模板级配置</el-tag>
+              </div>
+              <div class="mqtt-device-status-config">
+                <div class="mqtt-template-control mqtt-status-prefix-control">
+                  <label>状态 Tag 前缀</label>
+                  <el-input v-model="mqttTemplateForm.deviceErrorTagPrefix" maxlength="128" placeholder="#DEVICE_ERROR">
+                    <template #append>_{{ mqttTemplateTestData.deviceId || 'DeviceId' }}</template>
+                  </el-input>
+                  <div class="mqtt-format-description">默认生成 #DEVICE_ERROR_{DeviceId}；可将 #DEVICE_ERROR 自定义为业务需要的前缀。</div>
+                </div>
+                <div class="mqtt-device-status-values">
+                  <div class="device-error-code-card normal"><label>通讯正常 <span>NORMAL</span></label><el-input :model-value="0" aria-label="设备通讯正常状态码" disabled></el-input><small>固定 value = 0</small></div>
+                  <div class="device-error-code-card failure"><label>通讯失败 <span>FAILED</span></label><el-input-number v-model="mqttTemplateForm.communicationFailureCode" aria-label="设备通讯失败状态码" :controls="false"></el-input-number><small>非0整数，支持正数或负数</small></div>
+                </div>
+              </div>
+              <div class="device-error-code-rule"><strong>最终规则：</strong>{{ (mqttTemplateForm.deviceErrorTagPrefix || '#DEVICE_ERROR').replace(/_+$/, '') }}_{{ mqttTemplateTestData.deviceId || 'DeviceId' }}；在线 value=0，超时、断线、读取异常、离线等统一使用通讯失败码。</div>
+            </div>
+
+            <div class="mqtt-config-section">
+              <div class="mqtt-config-section-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">03</span> 系统字段</div>
+                  <div class="mqtt-config-section-help">勾选后由网关自动填充，PLC 驱动不参与报文生成。</div>
+                </div>
+                <span class="mqtt-config-count">{{ mqttTemplateSelectedFieldCount }} / 11</span>
+              </div>
+              <div class="mqtt-field-groups">
+                <div class="mqtt-field-group">
+                  <div class="mqtt-field-group-head">
+                    <span class="mqtt-field-group-name">设备身份</span>
+                    <div class="mqtt-field-group-actions"><button type="button" @click="setMqttFieldGroup(['includeDeviceId','includeDeviceName','includeDeviceIp','includeProtocol'], true)">全选</button><button type="button" @click="setMqttFieldGroup(['includeDeviceId','includeDeviceName','includeDeviceIp','includeProtocol'], false)">清空</button></div>
+                  </div>
+                  <div class="mqtt-field-grid">
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeDeviceId"><span class="mqtt-field-code">deviceId</span></el-checkbox><div class="mqtt-field-help">设备业务唯一标识</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeDeviceName"><span class="mqtt-field-code">deviceName</span></el-checkbox><div class="mqtt-field-help">Web 配置设备名称</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeDeviceIp"><span class="mqtt-field-code">deviceIp</span></el-checkbox><div class="mqtt-field-help">PLC 通讯目标地址</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeProtocol"><span class="mqtt-field-code">protocol</span></el-checkbox><div class="mqtt-field-help">统一协议类型名称</div></div>
+                  </div>
+                </div>
+                <div class="mqtt-field-group">
+                  <div class="mqtt-field-group-head">
+                    <span class="mqtt-field-group-name">网关与时间</span>
+                    <div class="mqtt-field-group-actions"><button type="button" @click="setMqttFieldGroup(['includeGatewayId','includeGatewayVersion','includeTimestamp','includeUnixTime'], true)">全选</button><button type="button" @click="setMqttFieldGroup(['includeGatewayId','includeGatewayVersion','includeTimestamp','includeUnixTime'], false)">清空</button></div>
+                  </div>
+                  <div class="mqtt-field-grid">
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeGatewayId"><span class="mqtt-field-code">gatewayId</span></el-checkbox><div class="mqtt-field-help">当前网关唯一标识</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeGatewayVersion"><span class="mqtt-field-code">gatewayVersion</span></el-checkbox><div class="mqtt-field-help">网关软件版本</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeTimestamp"><span class="mqtt-field-code">timestamp</span></el-checkbox><div class="mqtt-field-help">ISO 8601 采集时间</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeUnixTime"><span class="mqtt-field-code">unixTime</span></el-checkbox><div class="mqtt-field-help">Unix 秒级时间戳</div></div>
+                  </div>
+                </div>
+                <div class="mqtt-field-group">
+                  <div class="mqtt-field-group-head">
+                    <span class="mqtt-field-group-name">点位数据（至少选择一项）</span>
+                    <div class="mqtt-field-group-actions"><button type="button" @click="setMqttFieldGroup(['includeTag','includeValue','includeQuality'], true)">全选</button><button type="button" @click="setMqttFieldGroup(['includeTag','includeValue','includeQuality'], false)">清空</button></div>
+                  </div>
+                  <div class="mqtt-field-grid">
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeTag"><span class="mqtt-field-code">tag</span></el-checkbox><div class="mqtt-field-help">DeviceId:TagName</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeValue"><span class="mqtt-field-code">value</span></el-checkbox><div class="mqtt-field-help">点位工程值</div></div>
+                    <div class="mqtt-field-option"><el-checkbox v-model="mqttTemplateForm.includeQuality"><span class="mqtt-field-code">quality</span></el-checkbox><div class="mqtt-field-help">数据质量代码</div></div>
+                  </div>
+                  <div v-if="!mqttTemplateHasDataField" class="mqtt-template-warning">至少选择 tag、value 或 quality 中的一项，否则模板不能保存。</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mqtt-config-section">
+              <div class="mqtt-config-section-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">04</span> 自定义字段</div>
+                  <div class="mqtt-config-section-help">字段名使用字母、数字和下划线；最多 64 项。点位变量取当前设备第一个普通PLC点位，不会取设备状态Tag。</div>
+                </div>
+                <el-button class="mqtt-add-field-button" plain size="small" :disabled="mqttTemplateForm.customFields.length >= 64" @click="addMqttCustomField"><el-icon><Plus></Plus></el-icon> + 新增字段</el-button>
+              </div>
+              <div v-if="mqttTemplateForm.customFields.length === 0" class="mqtt-custom-empty">当前未配置自定义字段。需要附加 factoryId、产线或业务编码时再添加，不影响标准点位上传。</div>
+              <div v-for="(field, index) in mqttTemplateForm.customFields" :key="index" class="mqtt-custom-field">
+                <div class="mqtt-custom-field-head"><span>CUSTOM FIELD {{ String(index + 1).padStart(2, '0') }}</span><el-button type="danger" icon="Delete" link size="small" @click="mqttTemplateForm.customFields.splice(index, 1)">删除</el-button></div>
+                <div class="mqtt-custom-field-grid">
+                  <el-input v-model="field.name" maxlength="64" placeholder="字段名，如 factoryId"></el-input>
+                  <el-input v-model="field.value" maxlength="1024" placeholder="固定值或变量"></el-input>
+                </div>
+                <div class="mqtt-variable-row"><span>快速插入</span><button v-for="variable in mqttTemplateVariables" :key="variable" type="button" class="mqtt-variable-chip" @click="appendMqttCustomFieldVariable(index, variable)">${{ '{' }}{{ variable }}{{ '}' }}</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mqtt-template-column" aria-label="正式报文预览">
+          <div class="mqtt-template-column-inner">
+            <div class="mqtt-config-section">
+              <div class="mqtt-config-section-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">05</span> 测试数据</div>
+                  <div class="mqtt-config-section-help">仅用于生成预览，不会修改设备和分组配置。</div>
+                </div>
+              </div>
+              <div class="mqtt-test-grid">
+                <div class="mqtt-test-field mqtt-test-field-wide"><label>Topic 模板（正式 Topic 仍由分组配置）</label><el-input v-model="mqttTemplateTestData.topicTemplate" placeholder="factory/${deviceId}/data"></el-input></div>
+                <div class="mqtt-test-field"><label>deviceId</label><el-input v-model="mqttTemplateTestData.deviceId"></el-input></div>
+                <div class="mqtt-test-field"><label>deviceName</label><el-input v-model="mqttTemplateTestData.deviceName"></el-input></div>
+                <div class="mqtt-test-field"><label>deviceIp</label><el-input v-model="mqttTemplateTestData.deviceIp"></el-input></div>
+                <div class="mqtt-test-field"><label>protocol</label><el-select v-model="mqttTemplateTestData.protocol" style="width:100%;"><el-option v-for="protocol in protocolOptions" :key="protocol.value" :label="protocol.label" :value="protocol.value"></el-option></el-select></div>
+                <div class="mqtt-test-field"><label>groupName</label><el-input v-model="mqttTemplateTestData.groupName"></el-input></div>
+                <div class="mqtt-test-field"><label>line</label><el-input v-model="mqttTemplateTestData.line"></el-input></div>
+                <div class="mqtt-test-field"><label>tagName</label><el-input v-model="mqttTemplateTestData.tagName"></el-input></div>
+                <div class="mqtt-test-field"><label>value</label><el-input-number v-model="mqttTemplateTestData.value" :controls="false" style="width:100%;"></el-input-number></div>
+                <div class="mqtt-test-field"><label>quality</label><el-select v-model="mqttTemplateTestData.quality" style="width:100%;"><el-option label="Good / 0" value="Good"></el-option><el-option label="Uncertain / 1" value="Uncertain"></el-option><el-option label="Bad / 2" value="Bad"></el-option></el-select></div>
+                <div class="mqtt-test-field"><label>设备通讯状态</label><el-select v-model="mqttTemplateTestData.communicationState" style="width:100%;"><el-option label="通讯正常 / value=0" value="normal"></el-option><el-option :label="`通讯失败 / value=${mqttTemplateForm.communicationFailureCode}`" value="failed"></el-option></el-select></div>
+              </div>
+            </div>
+
+            <div class="mqtt-config-section">
+              <div class="mqtt-preview-head">
+                <div>
+                  <div class="mqtt-config-section-title"><span class="mqtt-config-step">06</span> 正式报文预览</div>
+                  <div class="mqtt-preview-status"><span class="mqtt-preview-status-dot" :class="{ loading: isPreviewingMqttTemplate }"></span>{{ isPreviewingMqttTemplate ? '后端构建器正在刷新' : '与实际入队构建逻辑一致' }}</div>
+                </div>
+                <div class="mqtt-preview-actions">
+                  <el-button size="small" plain :disabled="!mqttTemplatePreview?.topic" @click="copyMqttTemplatePreview('topic')">复制 Topic</el-button>
+                  <el-button size="small" plain :disabled="!mqttTemplatePreview?.prettyPayload" @click="copyMqttTemplatePreview('payload')">复制 JSON</el-button>
+                </div>
+              </div>
+              <div class="mqtt-preview-metrics">
+                <div class="mqtt-preview-metric"><div class="mqtt-preview-metric-label">报文格式</div><div class="mqtt-preview-metric-value">{{ mqttTemplateForm.payloadStyle === 'Advantech' ? 'DEFAULT D/TS' : 'EXTENDED' }}</div></div>
+                <div class="mqtt-preview-metric"><div class="mqtt-preview-metric-label">系统字段</div><div class="mqtt-preview-metric-value">{{ mqttTemplateSelectedFieldCount }}</div></div>
+                <div class="mqtt-preview-metric"><div class="mqtt-preview-metric-label">Payload 大小</div><div class="mqtt-preview-metric-value">{{ mqttTemplatePayloadBytes }} B</div></div>
+              </div>
+              <el-alert v-if="mqttTemplatePreview?.error" :title="mqttTemplatePreview.error" type="error" :closable="false" style="margin-bottom:10px;"></el-alert>
+              <div class="mqtt-topic-preview"><span class="mqtt-topic-preview-label">RESOLVED TOPIC</span>{{ mqttTemplatePreview?.topic || '等待后端解析 Topic…' }}</div>
+              <div class="mqtt-template-preview-shell">
+                <pre class="mqtt-template-preview" :class="{ loading: isPreviewingMqttTemplate }">{{ mqttTemplatePreview?.prettyPayload || '正在生成正式报文预览…' }}</pre>
+                <div v-if="isPreviewingMqttTemplate" class="mqtt-preview-loading"><el-icon class="is-loading"><Loading></Loading></el-icon> 刷新预览</div>
+              </div>
+              <div v-if="mqttTemplateTestResult" class="mqtt-test-result" :class="{ error: mqttTemplateTestResult.state === 'error' }">
+                <el-icon size="16"><CircleCheck v-if="mqttTemplateTestResult.state === 'success'"></CircleCheck><Warning v-else></Warning></el-icon>
+                <div><strong>{{ mqttTemplateTestResult.state === 'success' ? '测试报文已进入异步发送队列' : '测试发送失败' }}</strong><br>{{ mqttTemplateTestResult.message }} · {{ mqttTemplateTestResult.time }}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <template #footer>
+        <div class="mqtt-template-footer">
+          <div class="mqtt-template-footer-state" :class="{ valid: mqttTemplateValidation.errors.length === 0 }">{{ mqttTemplateValidation.errors.length ? mqttTemplateValidation.errors[0] : '配置校验通过，保存后立即热更新，无需重启网关。' }}</div>
+          <div class="mqtt-template-footer-actions">
+            <el-button @click="showMqttTemplateModal = false">取消</el-button>
+            <el-button type="warning" plain :loading="isTestingMqttTemplate" :disabled="mqttTemplateValidation.errors.length > 0" @click="testSendMqttTemplate">保存并测试发送</el-button>
+            <el-button type="primary" :loading="isSavingMqttTemplate" :disabled="mqttTemplateValidation.errors.length > 0" @click="saveMqttTemplate(true)">保存并热更新</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showAddGroupModal" :title="isEditGroup ? '编辑 MQTT 调度分组' : '新建 MQTT 调度分组'" width="500px" class="dark">
+      <el-form label-width="130px">
+        <el-form-item label="分组名称"><el-input v-model="newGroup.name" placeholder="例如：一号车间"></el-input></el-form-item>
+        <el-form-item label="产线标识"><el-input v-model="newGroup.line" placeholder="例如：LINE01，可用于 ${line}"></el-input></el-form-item>
+        <el-form-item label="MQTT Topic">
+          <el-input v-model="newGroup.topic" placeholder="factory/${deviceId}/data"></el-input>
+          <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;">支持 ${deviceId}、${deviceName}、${gatewayId}、${line}</div>
+        </el-form-item>
+        <el-form-item label="MQTT上传周期(s)">
+          <el-input-number v-model="newGroup.uploadCycle" :min="1" :max="86400" :step="1"></el-input-number>
+          <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;width:100%;">按分组周期调度，范围1秒到24小时；发布草稿后热更新。</div>
+        </el-form-item>
+        <el-form-item label="PLC扫描周期(ms)">
+          <el-input-number v-model="newGroup.scanCycle" :min="100" :max="86400000" :step="100"></el-input-number>
+          <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;width:100%;">同组设备使用该采集周期，最低100ms；发布草稿后采集循环自动重建。</div>
+        </el-form-item>
+      </el-form>
+      <template #footer><el-button @click="showAddGroupModal = false">取消</el-button><el-button type="primary" @click="saveGroup">保存配置</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="showDeviceModal" :title="isEditDevice ? '修改设备参数' : '添加南向设备'" width="700px" class="dark">
+      <el-form label-width="110px">
+        <el-form-item label="设备名称"><el-input v-model="newDevice.name" placeholder="例：注塑机_01"></el-input></el-form-item>
+        <el-form-item label="MQTT设备ID">
+          <el-input v-model="newDevice.mqttDeviceId" placeholder="例：PLC001；留空则使用设备名称"></el-input>
+          <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;">点位完整Tag自动生成：设备ID:点位名称</div>
+        </el-form-item>
+        <el-form-item label="报文模板">
+          <el-select v-model="newDevice.mqttTemplateId" clearable placeholder="默认工业标准模板" style="width:100%;">
+            <el-option v-for="template in enabledMqttTemplates" :key="template.id" :label="template.name" :value="template.id"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="通信协议">
+          <el-select v-model="newDevice.protocol" style="width: 100%;" @change="applyDefaultPort">
+            <el-option v-for="protocol in protocolOptions" :key="protocol.value" :label="protocol.label" :value="protocol.value"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="主机/IP"><el-input v-model="newDevice.host" placeholder="192.168.1.10"></el-input></el-form-item>
+        <el-form-item label="端口"><el-input-number v-model="newDevice.port" :min="1" :max="65535"></el-input-number></el-form-item>
+        <el-form-item label="连接超时(ms)"><el-input-number v-model="newDevice.connectTimeoutMs" :min="100" :max="120000" :step="100"></el-input-number></el-form-item>
+        <el-form-item label="接收超时(ms)"><el-input-number v-model="newDevice.receiveTimeoutMs" :min="100" :max="120000" :step="100"></el-input-number></el-form-item>
+        <el-form-item v-for="field in selectedProtocolFields" v-show="shouldShowProtocolField(field)" :key="field.name" :label="field.label">
+          <el-input-number v-if="field.inputType === 'number'" v-model="newDevice[field.name]" :min="field.minimum" :max="field.maximum"></el-input-number>
+          <el-select v-else-if="field.inputType === 'select'" v-model="newDevice[field.name]" style="width: 100%;">
+            <el-option v-for="option in field.options" :key="option.value" :label="option.label" :value="option.value"></el-option>
+          </el-select>
+          <el-switch v-else-if="field.inputType === 'switch'" v-model="newDevice[field.name]"></el-switch>
+          <el-input v-else v-model="newDevice[field.name]" :type="field.inputType === 'password' ? 'password' : 'text'" :show-password="field.inputType === 'password'" :placeholder="field.help || ''"></el-input>
+          <div v-if="field.help && field.inputType !== 'text'" style="color: var(--el-text-color-secondary); font-size: 12px; line-height: 18px;">{{ field.help }}</div>
+        </el-form-item>
+        <el-alert v-if="newDevice.protocol === 'MitsubishiMc' && ['Binary1E','Ascii1E'].includes(newDevice.mitsubishiFormat)" title="A兼容1E帧已自动锁定TCP，仅PLC编号有效；适用于A系列及兼容1E设备。" type="info" :closable="false" show-icon style="margin:0 0 16px 20px;"></el-alert>
+        <div v-if="newDevice.protocol === 'SiemensS7'" class="siemens-profile-hint">
+          <strong>当前S7连接策略：</strong>{{ siemensRecommendation }}；端口 {{ newDevice.port }}；连接角色 {{ newDevice.siemensConnectionType || 'Pg' }}。<br>
+          S7-1200/1500 请在 TIA Portal 中启用 PUT/GET 通信，并确认保护级别允许外部访问。
+        </div>
+        <el-form-item><el-button type="info" plain :loading="isTestingConnection" @click="testConnection">测试设备连接</el-button></el-form-item>
+        <div v-if="connectionDiagnostic" class="connection-diagnostic">
+          <div class="connection-diagnostic-title">
+            <span>连接诊断</span>
+            <el-tag :type="connectionDiagnostic.success ? 'success' : 'danger'" effect="dark">{{ connectionDiagnostic.success ? '链路正常' : '存在故障' }}</el-tag>
+          </div>
+          <div v-for="step in connectionDiagnostic.steps || []" :key="step.name" class="connection-step">
+            <el-tag size="small" :type="step.success ? 'success' : 'danger'">{{ step.success ? '通过' : '失败' }} · {{ step.name }}</el-tag>
+            <span class="connection-step-detail">{{ step.detail }}</span>
+            <span class="connection-step-duration">{{ step.durationMs }} ms</span>
+          </div>
+          <div v-if="connectionDiagnostic.recommendation" class="connection-recommendation">处理建议：{{ connectionDiagnostic.recommendation }}</div>
+        </div>
+
+        <el-alert title="注：该设备的扫描频率受其所属分组统一调度" type="info" :closable="false" style="margin-left: 20px; background: transparent; border: 1px solid var(--snet-border);"></el-alert>
+      </el-form>
+      <template #footer><el-button @click="showDeviceModal = false">取消</el-button><el-button type="primary" @click="saveDevice">确认保存</el-button></template>
+    </el-dialog>
+
+  </div>
+
+  <script type="text/plain" id="legacy-prototype-script">
+    const { createApp, ref, onMounted, onUnmounted, computed } = Vue;
+    const { ElMessage, ElLoading, ElMessageBox } = ElementPlus; 
+
+    const app = createApp({
+      setup() {
+        // === 登录与账号密码管理 ===
+        const isLoggedIn = ref(false);
+        const isLoggingIn = ref(false);
+        const loginForm = ref({ username: '', password: '' });
+        
+        const showPwdModal = ref(false);
+        const pwdForm = ref({ old: '', new: '', confirm: '' });
+        let realPassword = '123456'; 
+
+        const handleLogin = () => {
+            if (!loginForm.value.username || !loginForm.value.password) return ElMessage.warning('请输入账号和密码！');
+            isLoggingIn.value = true;
+            setTimeout(() => { 
+                if (loginForm.value.username === 'admin' && loginForm.value.password === realPassword) {
+                    isLoggedIn.value = true; 
+                    ElMessage.success('身份验证成功，欢迎进入系统！');
+                } else {
+                    // 优化：去掉错误提示里的明文密码
+                    ElMessage.error('账号或密码错误！');
+                }
+                isLoggingIn.value = false; 
+            }, 800);
+        };
+        const handleUserCommand = (cmd) => { 
+            if(cmd === 'logout') { isLoggedIn.value = false; loginForm.value.password = ''; ElMessage.success('已安全退出系统'); }
+            if(cmd === 'changePwd') { pwdForm.value = { old: '', new: '', confirm: '' }; showPwdModal.value = true; }
+        };
+        const savePassword = () => {
+            if(!pwdForm.value.old || !pwdForm.value.new || !pwdForm.value.confirm) return ElMessage.warning('请填写完整！');
+            if(pwdForm.value.old !== realPassword) return ElMessage.error('原密码错误！');
+            if(pwdForm.value.new !== pwdForm.value.confirm) return ElMessage.error('两次新密码不一致！');
+            realPassword = pwdForm.value.new;
+            showPwdModal.value = false;
+            ElMessage.success('密码修改成功，下次请使用新密码登录！');
+        };
+
+        const activeNav = ref('1'); 
+        const isCollecting = ref(true);
+
+        // === TreeGrid 数据模型 ===
+        const groupList = ref([
+            { id: 'g1', name: '一号车间_压铸产线', nodeType: 'group', topic: 'edge/room1/telemetry', uploadCycle: 10, scanCycle: 1000, 
+              children: [
+                { id: 'g1_d1', name: '西门子 S7-1500 主控', nodeType: 'device', protocol: 'SiemensS7', ipAddress: '192.168.1.10:102', status: 1, protocolParams: { timeout: 1000, rack: 0, slot: 1 } },
+                { id: 'g1_d2', name: '台达温控仪表', nodeType: 'device', protocol: 'ModbusTcp', ipAddress: '192.168.1.11:502', status: 1, protocolParams: { timeout: 500, rack: 0, slot: 0 } }
+              ] 
+            },
+            { id: 'g2', name: '二号车间_装配产线', nodeType: 'group', topic: 'edge/room2/telemetry', uploadCycle: 30, scanCycle: 500, children: [
+                { id: 'g2_d1', name: '三菱 MC 机械臂', nodeType: 'device', protocol: 'Mitsubishi', ipAddress: '192.168.2.55:5000', status: 0, protocolParams: { timeout: 1000, rack: 0, slot: 0 } }
+            ] }
+        ]);
+
+        const activeDashboardGroups = ref(groupList.value.map(g => g.id));
+
+        // === 动态计算仪表盘数据 ===
+        const totalDevices = computed(() => {
+            return groupList.value.reduce((sum, group) => sum + (group.children ? group.children.length : 0), 0);
+        });
+        const onlineDevices = computed(() => {
+            return groupList.value.reduce((sum, group) => sum + (group.children ? group.children.filter(d => d.status === 1).length : 0), 0);
+        });
+        const offlineDevices = computed(() => totalDevices.value - onlineDevices.value);
+
+        // === 分组逻辑 ===
+        const showAddGroupModal = ref(false);
+        const isEditGroup = ref(false);
+        const newGroup = ref({ id: '', name: '', topic: '', uploadCycle: 10, scanCycle: 1000 });
+        
+        const openAddGroupModal = (row = null) => { 
+            if(row && row.id) {
+                isEditGroup.value = true;
+                newGroup.value = { ...row }; 
+            } else {
+                isEditGroup.value = false;
+                newGroup.value = { id: '', name: '', topic: 'edge/new/telemetry', uploadCycle: 15, scanCycle: 1000 };
+            }
+            showAddGroupModal.value = true; 
+        };
+        const saveGroup = () => {
+            if(isEditGroup.value) {
+                const target = groupList.value.find(g => g.id === newGroup.value.id);
+                if(target) Object.assign(target, newGroup.value);
+                ElMessage.success('分组调度策略已热更新！');
+            } else {
+                const nid = 'g' + Date.now();
+                groupList.value.push({ id: nid, ...newGroup.value, nodeType: 'group', children: [] });
+                activeDashboardGroups.value.push(nid); 
+                ElMessage.success('新分组创建成功！');
+            }
+            showAddGroupModal.value = false;
+        };
+        const deleteGroup = (row) => {
+            ElMessageBox.confirm(`确定要删除分组 [${row.name}] 及其下属所有设备吗？`, '警告', { type: 'error' }).then(() => {
+                groupList.value = groupList.value.filter(g => g.id !== row.id);
+                ElMessage.success('分组已删除');
+            }).catch(()=>{});
+        };
+
+        // === 设备添加与编辑 ===
+        const showDeviceModal = ref(false);
+        const isEditDevice = ref(false);
+        const newDevice = ref({ id:'', name: '', protocol: 'SiemensS7', ipAddress: '', status: 1 });
+        let targetGroupForDevice = null; 
+        
+        const openAddDeviceModal = (groupRow) => { 
+            isEditDevice.value = false;
+            targetGroupForDevice = groupRow;
+            newDevice.value = { id:'', name: '', protocol: 'SiemensS7', ipAddress: '', status: 1 };
+            showDeviceModal.value = true;
+        };
+        
+        const openEditDeviceModal = (deviceRow) => {
+            isEditDevice.value = true;
+            newDevice.value = JSON.parse(JSON.stringify(deviceRow)); 
+            showDeviceModal.value = true;
+        };
+
+        const saveDevice = () => {
+            if(!newDevice.value.name || !newDevice.value.ipAddress) return ElMessage.warning('请填写完整信息');
+            
+            if (isEditDevice.value) {
+                let found = false;
+                for (const group of groupList.value) {
+                    const target = group.children.find(d => d.id === newDevice.value.id);
+                    if (target) {
+                        Object.assign(target, newDevice.value);
+                        found = true;
+                        break;
+                    }
+                }
+                if(found) ElMessage.success(`设备 [${newDevice.value.name}] 参数更新成功！`);
+            } else {
+                targetGroupForDevice.children.push({
+                    id: 'd' + Date.now(),
+                    groupName: targetGroupForDevice.name,
+                    nodeType: 'device',
+                    status: 1,
+                    protocolParams: { timeout: 1000, rack: 0, slot: 1 },
+                    ...newDevice.value
+                });
+                ElMessage.success(`设备 [${newDevice.value.name}] 已添加到网关队列！`);
+            }
+            showDeviceModal.value = false;
+        };
+        const deleteDevice = (row) => {
+            const group = groupList.value.find(g => g.children.some(d => d.id === row.id));
+            if(group) {
+                group.children = group.children.filter(d => d.id !== row.id);
+                ElMessage.success('设备已移除');
+            }
+        };
+
+        // === 批量复制功能 ===
+        const batchCopyDevice = (deviceRow) => {
+            ElMessageBox.prompt(`请输入要为【${deviceRow.name}】批量生成的克隆数量：`, '批量复制设备', {
+                confirmButtonText: '开始生成', cancelButtonText: '取消', inputPattern: /^[1-9]\d*$/, inputErrorMessage: '请输入有效整数'
+            }).then(({ value }) => {
+                const count = parseInt(value, 10);
+                const loading = ElLoading.service({ lock: true, text: `正在批量克隆 ${count} 台设备及数据字典...`, background: 'rgba(0, 0, 0, 0.8)' });
+                
+                setTimeout(() => {
+                    const group = groupList.value.find(g => g.children.some(d => d.id === deviceRow.id));
+                    if(group) {
+                        for (let i = 0; i < count; i++) {
+                            const clonedDevice = JSON.parse(JSON.stringify(deviceRow));
+                            clonedDevice.id = 'd_copy_' + Date.now() + '_' + i;
+                            clonedDevice.name = `${deviceRow.name}_副本${i+1}`;
+                            group.children.push(clonedDevice);
+                        }
+                    }
+                    loading.close();
+                    ElMessage.success(`成功生成 ${count} 台设备，已在树形列表中展开！`);
+                }, 800);
+            }).catch(() => {});
+        };
+
+        // === 侧边抽屉点位管理 ===
+        const drawerVisible = ref(false);
+        const currentDevice = ref(null);
+        const tagList = ref([]);
+        let simInterval = null;
+
+        const openTagDrawer = (deviceRow) => {
+            currentDevice.value = deviceRow;
+            // 初始化新增 remark 字段
+            tagList.value = [
+                { name: '主管道温度', address: 'DB1.DBD0', functionCode: '03', dataType: 'Float32', endian: 'ABCD', operator: '*', operand: 1.5, decimals: 2, onChange: false, rawVal: 24.50, remark: '核心测温点' },
+                { name: '急停报警', address: '10001', functionCode: '02', dataType: 'Bool', endian: 'ABCD', operator: '+', operand: 0, decimals: 0, onChange: true, rawVal: 0, remark: '设备安全联锁' },
+                { name: '生产批次', address: 'DB2.DBW10', functionCode: '04', dataType: 'BCD', endian: 'CDAB', operator: '+', operand: 0, decimals: 0, onChange: false, rawVal: 9982, remark: '当日生产批次号' }
+            ];
+            drawerVisible.value = true;
+        };
+        
+        const addPoint = () => { tagList.value.push({ name: '新测点', address: 'DB', functionCode: '03', dataType: 'Int16', endian: 'ABCD', operator: '*', operand: 1, decimals: 1, onChange: false, rawVal: 100, remark: '' }); };
+        
+        const calcFinalVal = (point) => {
+            if (point.dataType === 'Bool') return point.rawVal > 0 ? "True" : "False";
+            if (point.dataType === 'String' || point.dataType === 'BCD') return point.rawVal;
+            
+            let result = Number(point.rawVal);
+            const op = Number(point.operand);
+            
+            switch(point.operator) {
+                case '+': result += op; break;
+                case '-': result -= op; break;
+                case '*': result *= op; break;
+                case '/': result = op !== 0 ? result / op : result; break;
+            }
+            return result.toFixed(point.decimals || 0); 
+        };
+
+        onMounted(() => {
+            simInterval = setInterval(() => {
+                if(isCollecting.value && drawerVisible.value && tagList.value.length > 0) {
+                    tagList.value.forEach(pt => {
+                        if(pt.dataType === 'Float32' || pt.dataType === 'Int16') {
+                            pt.rawVal = +(pt.rawVal + (Math.random() * 2 - 1)).toFixed(2);
+                        }
+                    });
+                }
+            }, 1000);
+        });
+        onUnmounted(() => { if(simInterval) clearInterval(simInterval); });
+
+        // === MQTT & 系统设置 ===
+        const mqttConfig = ref({ host: '10.0.0.88', port: '1883', clientId: 'EDGENEXUS_01', username: 'edge_admin', password: '', qos: 1 });
+        const settings = ref({ memLimit: 2048 });
+        const saveSettings = () => { ElMessage.success('全局策略已保存应用！'); };
+
+        // === 工程导入与导出 ===
+        const triggerProjectImport = () => { document.getElementById('project-upload').click(); };
+        const handleImport = (e) => {
+            if(!e.target.files.length) return;
+            const loading = ElLoading.service({ lock: true, text: '正在解析并导入网关组态工程...', background: 'rgba(0, 0, 0, 0.8)' });
+            setTimeout(() => { loading.close(); ElMessage.success('工程导入成功！'); e.target.value = ''; }, 1200);
+        };
+        const exportProject = () => { ElMessage.success('拓扑配置已导出！文件 Gateway_Backup.json 正在下载...'); };
+
+        // === 网络诊断 Ping ===
+        const pingIp = ref('');
+        const isPinging = ref(false);
+        const pingResult = ref(null);
+        const startPing = () => {
+            if (!pingIp.value) return ElMessage.warning('请输入 IP');
+            isPinging.value = true; pingResult.value = null;
+            setTimeout(() => {
+                isPinging.value = false;
+                const ok = Math.random() > 0.2;
+                pingResult.value = { success: ok, message: ok ? '网络通畅' : '请求超时', latency: ok ? Math.floor(Math.random() * 50)+1 : 0, packetLoss: ok ? 0 : 100 };
+            }, 1000);
+        };
+
+        return { 
+            isLoggedIn, isLoggingIn, loginForm, handleLogin, handleUserCommand, showPwdModal, pwdForm, savePassword,
+            activeNav, isCollecting, 
+            groupList, activeDashboardGroups, totalDevices, onlineDevices, offlineDevices, batchCopyDevice,
+            drawerVisible, currentDevice, tagList, openTagDrawer, addPoint, calcFinalVal,
+            showAddGroupModal, isEditGroup, newGroup, openAddGroupModal, saveGroup, deleteGroup,
+            showDeviceModal, isEditDevice, newDevice, openAddDeviceModal, openEditDeviceModal, saveDevice, deleteDevice,
+            triggerProjectImport, handleImport, exportProject,
+            pingIp, isPinging, pingResult, startPing,
+            mqttConfig, settings, saveSettings
+        };
+      }
+    });
+    app.use(ElementPlus);
+    for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+    app.mount('#app');
+  </script>
+</body>
+</html>

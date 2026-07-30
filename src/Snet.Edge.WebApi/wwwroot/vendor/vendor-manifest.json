@@ -1,0 +1,26 @@
+{
+  "vue": {
+    "version": "3.5.18",
+    "file": "vue/vue.global.prod.js",
+    "sha256": "5828F332C1A6E05AC08E87F51E3C28A8877609A6D3132D899C97D48DA12C727A"
+  },
+  "elementPlus": {
+    "version": "2.10.7",
+    "javascript": "element-plus/index.full.min.js",
+    "javascriptSha256": "08AC4632B698AC54CEE4D46777F3C6C16B7CCE7C32A329EA5E7D2C96A94F154E",
+    "css": "element-plus/index.css",
+    "cssSha256": "A8B23008C6B2EE497133DC9A7C97645A30236C06D28E6A6E594B4A4BFC2B72AD",
+    "darkCss": "element-plus/dark/css-vars.css",
+    "darkCssSha256": "32124C50111E44BB9E2A8E9BB17067609D178AED950D421F6F6785C913A5E621"
+  },
+  "elementPlusIconsVue": {
+    "version": "2.3.2",
+    "file": "element-plus-icons/index.iife.min.js",
+    "sha256": "B6D3DA03D73BFA394A28F442BF896B31119F502FF3B59608BB73A88562E5D306"
+  },
+  "signalR": {
+    "version": "10.0.0",
+    "file": "signalr/signalr.min.js",
+    "sha256": "10DD7681421E4638A55A3367A68AC0EAC1973BE1B4471B91B1B9E2306BB0B050"
+  }
+}
