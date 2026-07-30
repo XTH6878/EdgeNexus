@@ -626,6 +626,7 @@ HTTP 写请求 -> AuditMiddleware -> AuditLogStore Channel -> SQLite batch trans
 - TreatWarningsAsErrors：true。
 - InvariantGlobalization：false。
 - 包版本由 `Directory.Packages.props` 集中管理。
+- 启用中央传递依赖固定；发布构建必须阻止包含已知高危 NuGet 漏洞的产物。
 
 ## 21. 关键依赖版本
 
@@ -642,6 +643,12 @@ HTTP 写请求 -> AuditMiddleware -> AuditLogStore Channel -> SQLite batch trans
 | Serilog.Sinks.Async | 2.1.0 | 异步日志 |
 | Swashbuckle.AspNetCore | 10.1.2 | Swagger |
 | xunit | 2.9.3 | 测试 |
+
+传递依赖安全固定：
+
+- `Microsoft.OpenApi` 固定到 `2.7.5` 或更高的兼容修复版本，避免循环 Schema 引用导致进程终止。
+- `SQLitePCLRaw.lib.e_sqlite3` 固定到 `2.1.12` 或更高的兼容修复版本，避免将存在已知高危漏洞的 SQLite 原生库打入发布包。
+- 安全固定只允许在完整测试、双平台 Release 发布和漏洞扫描通过后进入版本标签。
 
 ## 22. DI 注册：配置与网络
 
