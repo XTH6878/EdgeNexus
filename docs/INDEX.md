@@ -68,7 +68,7 @@ flowchart LR
 - Nullable：开启。
 - ImplicitUsings：开启。
 - TreatWarningsAsErrors：开启。
-- HslCommunication：`12.9.1`。
+- PLC 协议栈：内置 `.NET 10` 原生异步协议栈（`NativePlcProtocols`，零商业授权依赖）。
 - MQTTnet：`5.2.0.1603`。
 - OPC UA SDK：`1.5.378.156`。
 - Dapper：`2.1.66`。
@@ -831,7 +831,7 @@ flowchart LR
 - 变更记录：[../CHANGELOG.md](../CHANGELOG.md)。
 - 贡献规则：[../CONTRIBUTING.md](../CONTRIBUTING.md)。
 - 安全策略：[../SECURITY.md](../SECURITY.md)。
-- 当前仓库尚未包含 `LICENSE` 文件，不能假定已授予开源许可。
+- 开源许可证：[../LICENSE](../LICENSE)（Apache License 2.0）。
 
 ## 39. 新增专题文档
 

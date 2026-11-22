@@ -191,7 +191,7 @@ FullMode: DropOldest
 代价：
 
 - 每条消息有磁盘写入。
-- 入队容量检查有 SQLite COUNT 成本。
+- 入队容量检查已通过 `MqttOutbox` 内存原子计数器优化为 O(1)，避免每次入队全表 `SELECT COUNT(1)`。
 - 大量小事务依赖磁盘延迟。
 
 ## 15. Outbox 默认容量
@@ -258,7 +258,7 @@ ReplayMaxMessagesPerSecond = 200
 
 `TelemetryAggregationWorker` 当前约每 250 ms 处理配置与聚合状态。
 
-它会读取并反序列化活动快照。配置规模很大时，快照获取和 JSON 反序列化是需要关注的固定成本。
+`SqliteGatewayConfigurationStore.GetSnapshotAsync` 已内置活动快照内存缓存（仅在初始化、发布或回滚时刷新），因此 250 ms 聚合循环读取活动快照为 O(1) 零反序列化开销。
 
 ## 21. 设备健康周期
 

@@ -179,4 +179,4 @@ dotnet test tests/Snet.Edge.Tests/Snet.Edge.Tests.csproj -c Release
 
 ## License 注意事项
 
-当前仓库没有 `LICENSE` 文件。贡献者在项目所有者选择许可证前，不应假定提交内容已经按某一开源许可证发布。HslCommunication 等依赖还可能有独立商业授权要求。
+本项目按 [Apache License 2.0](LICENSE) 发布。新增依赖时必须确保其开源许可证与 Apache-2.0 兼容，禁止引入具有商业运行时限制或闭源收费授权的通信库。

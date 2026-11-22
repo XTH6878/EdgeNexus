@@ -185,7 +185,7 @@ public static class ProtocolPointAddressCatalog
                 ],
                 [
                     "DVP 与 AS 系列的地址范围和扩展区不同，必须与 ISPSoft/DIAStudio 点表一致。",
-                    "当前 HslCommunication 12.9.1 按 X0/Y0 格式映射位地址；升级驱动后由地址解析测试复核兼容性。"
+                    "当前内置驱动按 X0/Y0 格式映射位地址；升级驱动后由地址解析测试复核兼容性。"
                 ])
         };
 

@@ -197,7 +197,7 @@ flowchart LR
 - 公共属性：`Protocol`。
 - 公共方法：`ConnectAsync`、`ReadAsync`、`ReadManyAsync`、`DisconnectAsync`、`DisposeAsync`。
 - 内部同步：`SemaphoreSlim` 串行化读取。
-- 典型路径：设备采集循环 -> 驱动 -> HslCommunication。
+- 典型路径：设备采集循环 -> 驱动 -> 内置原生异步协议客户端（`NativePlcProtocols`）。
 - 生命周期：每设备会话；实现异步释放。
 
 ### 5.7 `OpcUaDeviceDriver`

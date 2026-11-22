@@ -1,17 +1,3 @@
-using HslCommunication;
-using HslCommunication.Core;
-using HslCommunication.Core.Device;
-using HslCommunication.ModBus;
-using HslCommunication.Profinet.AllenBradley;
-using HslCommunication.Profinet.Beckhoff;
-using HslCommunication.Profinet.Delta;
-using HslCommunication.Profinet.Inovance;
-using HslCommunication.Profinet.Keyence;
-using HslCommunication.Profinet.Melsec;
-using HslCommunication.Profinet.Melsec.Helper;
-using HslCommunication.Profinet.Omron;
-using HslCommunication.Profinet.Panasonic;
-using HslCommunication.Profinet.Siemens;
 using Opc.Ua;
 using Opc.Ua.Client;
 using System.Text;
@@ -712,19 +698,67 @@ public sealed class OpcUaDeviceDriver(DeviceDefinition device, DeviceReadPlan re
 
     public async ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyAsync(CancellationToken cancellationToken)
     {
+        var session = _session ?? throw new InvalidOperationException("OPC UA会话尚未连接。");
         var values = new Dictionary<Guid, DeviceTagReadResult>(readPlan.SourceTagCount);
+        var validTags = new List<TagDefinition>(readPlan.SourceTagCount);
+        var nodesToRead = new ReadValueIdCollection();
+
         foreach (var batch in readPlan.Batches)
         {
             foreach (var tag in batch.Tags)
             {
                 try
                 {
-                    values[tag.Id] = DeviceTagReadResult.Success(await ReadAsync(tag, cancellationToken));
+                    nodesToRead.Add(new ReadValueId
+                    {
+                        NodeId = NodeId.Parse(tag.Address),
+                        AttributeId = Attributes.Value
+                    });
+                    validTags.Add(tag);
                 }
                 catch (Exception exception) when (DeviceReadFailureClassifier.IsPointSpecific(exception))
                 {
                     values[tag.Id] = DeviceTagReadResult.ConfigurationFailure(exception.Message);
                 }
+            }
+        }
+
+        if (nodesToRead.Count == 0)
+        {
+            return values;
+        }
+
+        var response = await session.ReadAsync(
+            null,
+            0,
+            TimestampsToReturn.Neither,
+            nodesToRead,
+            cancellationToken);
+        var results = response.Results;
+        for (var index = 0; index < validTags.Count; index++)
+        {
+            var tag = validTags[index];
+            if (results is null || index >= results.Count)
+            {
+                values[tag.Id] = DeviceTagReadResult.ConfigurationFailure("OPC UA批量读取未返回对应节点结果。");
+                continue;
+            }
+
+            var dataValue = results[index];
+            if (StatusCode.IsGood(dataValue.StatusCode))
+            {
+                values[tag.Id] = DeviceTagReadResult.Success(dataValue.Value);
+                continue;
+            }
+
+            var statusException = new ServiceResultException(dataValue.StatusCode);
+            if (DeviceReadFailureClassifier.IsPointSpecific(statusException))
+            {
+                values[tag.Id] = DeviceTagReadResult.ConfigurationFailure(statusException.Message);
+            }
+            else
+            {
+                throw statusException;
             }
         }
 

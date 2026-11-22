@@ -3,7 +3,6 @@
     <ProjectReference Include="..\Snet.Edge.Application\Snet.Edge.Application.csproj" />
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="Dapper" />
-    <PackageReference Include="HslCommunication" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" />
     <PackageReference Include="MQTTnet" />

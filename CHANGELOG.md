@@ -6,7 +6,22 @@
 
 ## [Unreleased]
 
-当前没有待发布变更。
+### Added
+
+- 新增 [Apache License 2.0](LICENSE) 开源许可证文件，明确项目开源使用、修改与商业分发授权。
+- 新增 `.gitattributes` 统一跨平台换行符与前端 vendored 静态资源二进制保护，防止 Windows 克隆时 `core.autocrlf` 破坏前端资产 SHA-256 完整性校验。
+- 新增内置纯 `.NET 10` 原生异步工业协议栈 `NativePlcProtocols.cs`，完整实现 Siemens S7（ISO-COTP + S7 PDU 协商与多变量批读）、Modbus TCP、Mitsubishi MC（3E/1E Binary/ASCII TCP/UDP）、Keyence KV MC、Omron FINS/TCP（含节点分配握手与分片读取）、Panasonic Mewtocol（ASCII + BCC 校验）、Allen-Bradley EtherNet/IP & Omron CIP（RegisterSession + SendRRData + `0x4C` 单读 / `0x0A` 多服务包批读）、Beckhoff ADS（AMS/TCP + 符号句柄解析缓存 + `0xF080` SumRead 批读）、Inovance TCP（AM/H3U/H5U/Easy 地址翻译）与 Delta TCP（DVP/AS 地址翻译）。
+- 新增 `NativePlcProtocolWireTests` 回环报文级集成测试，覆盖各协议真实 TCP/UDP 握手、批量读取、单点非法地址异常隔离及配置快照内存缓存验证（测试总数由 181 提升至 189 并全部通过）。
+
+### Changed
+
+- `OpcUaDeviceDriver.ReadManyAsync` 升级为单次 `session.ReadAsync` 节点列表批量读取，并对单节点 Bad StatusCode 执行点位级隔离，大幅降低多点位 OPC UA 轮询往返开销。
+- `SqliteGatewayConfigurationStore.GetSnapshotAsync` 增加线程安全的活动配置快照内存缓存（在初始化、发布草稿、独立应用 MQTT 配置及回滚时原子刷新），消除 `TelemetryAggregationWorker` 每 250ms 重复查询 SQLite 与反序列化 JSON 的 CPU/GC 开销。
+- `MqttOutbox` 增加待发消息原子计数器缓存，将 `PublishAsync` 入队容量检查从每次事务内 `SELECT COUNT(1) FROM mqtt_outbox` 全表扫描优化为 O(1) 内存判断。
+
+### Removed
+
+- 彻底移除第三方商业闭源通信库 `HslCommunication` NuGet 依赖，消除 24 小时试用断连限制与商业授权合规风险，保持 100% 网卡绑定（`LocalBinding`）与原有公共类型接口兼容。
 
 ## [V1.0] - 2026-07-30
 

@@ -583,9 +583,10 @@ HTTP 写请求 -> AuditMiddleware -> AuditLogStore Channel -> SQLite batch trans
 
 - SDK：`Microsoft.NET.Sdk`。
 - 项目引用：`Snet.Edge.Application`。
-- PackageReference：ClosedXML、Dapper、HslCommunication。
+- PackageReference：ClosedXML、Dapper。
 - PackageReference：Microsoft.Data.Sqlite、Identity Core。
 - PackageReference：MQTTnet、OPC UA Client、Polly.Core。
+- 内置原生异步 PLC 协议栈：`NativePlcProtocols`（无第三方商业 PLC 库依赖）。
 - 命名空间：`Snet.Edge.Infrastructure`。
 - 子命名空间：GatewayDeviceHealth、GatewayMqtt。
 - 输出：端口实现和后台服务。
@@ -632,7 +633,6 @@ HTTP 写请求 -> AuditMiddleware -> AuditLogStore Channel -> SQLite batch trans
 
 | 包 | 版本 | 使用模块 |
 |---|---|---|
-| HslCommunication | 12.9.1 | PLC 驱动 |
 | MQTTnet | 5.2.0.1603 | MQTT |
 | OPC UA Client | 1.5.378.156 | OPC UA |
 | Dapper | 2.1.66 | SQLite 存储 |

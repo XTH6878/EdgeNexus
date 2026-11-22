@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using HslCommunication.Profinet.Melsec;
 using Snet.Edge.Domain;
 using Snet.Edge.Infrastructure;
 

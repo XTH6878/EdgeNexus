@@ -44,7 +44,7 @@ flowchart TD
     Choice --> HSL["HslDeviceDriver"]
     Choice --> OPC["OpcUaDeviceDriver"]
     HSL --> Session["HslTcpClientSession"]
-    Session --> Client["HslCommunication DeviceTcpNet"]
+    Session --> Client["内置原生异步 DeviceTcpNet 协议栈"]
     OPC --> UaSession["OPC UA ISession"]
     Network["PLC Network Binding"] --> Factory
 ```
@@ -56,12 +56,12 @@ flowchart TD
 | Siemens S7 | `SiemensS7Net` | 102 | 原生多地址，Bool单读 |
 | Modbus TCP | `ModbusTcpNet` | 502 | 安全单读 |
 | Mitsubishi MC | 3E/1E TCP/3E UDP 客户端 | 5000 | 安全单读 |
-| OPC UA | OPC Foundation `ISession` | 4840 | 当前逐点读 |
+| OPC UA | OPC Foundation `ISession` | 4840 | `ReadAsync` 节点集合批量读 |
 | Panasonic Mewtocol | `PanasonicMewtocolOverTcp` | 9094 | 安全单读 |
-| Omron FINS | `OmronFinsNet` | 9600 | 安全单读 |
-| Omron CIP | `OmronConnectedCipNet` | 44818 | 原生多地址，Bool单读 |
-| Allen-Bradley | `AllenBradleyNet` | 44818 | 原生多地址，Bool单读 |
-| Beckhoff ADS | `BeckhoffAdsNet` | 851 | 原生多地址，Bool单读 |
+| Omron FINS | `OmronFinsNet` | 9600 | 安全单读（支持 `ReadSplits` 分片） |
+| Omron CIP | `OmronConnectedCipNet` | 44818 | 原生多地址（`0x0A` 多服务包），Bool单读 |
+| Allen-Bradley | `AllenBradleyNet` | 44818 | 原生多地址（`0x0A` 多服务包），Bool单读 |
+| Beckhoff ADS | `BeckhoffAdsNet` | 851 | 原生多地址（`0xF080` SumRead），Bool单读 |
 | Keyence MC | `KeyenceMcNet` | 5000 | 安全单读 |
 | Inovance TCP | `InovanceTcpNet` | 502 | 安全单读 |
 | Delta TCP | `DeltaTcpNet` | 502 | 安全单读 |

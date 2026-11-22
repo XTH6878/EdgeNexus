@@ -18,6 +18,7 @@ public sealed class MqttOutbox(
     ITopicBuilder topicBuilder) : IMqttMessagePublisher, IMqttOutboxMonitor, IMqttOutboxConfigurationSynchronizer
 {
     private static readonly string GatewayVersion = typeof(MqttOutbox).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    private long _pendingCount = -1;
 
     public async ValueTask InitializeAsync(CancellationToken cancellationToken)
     {
@@ -51,6 +52,10 @@ public sealed class MqttOutbox(
             cancellationToken: cancellationToken));
         await EnsureOutboxColumnAsync(connection, "source_device_id", "TEXT NULL", cancellationToken);
         await EnsureOutboxColumnAsync(connection, "source_tag_ids", "TEXT NOT NULL DEFAULT '[]'", cancellationToken);
+        var initialCount = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            "SELECT COUNT(1) FROM mqtt_outbox;",
+            cancellationToken: cancellationToken));
+        Interlocked.Exchange(ref _pendingCount, initialCount);
     }
 
     public async ValueTask PublishAsync(MqttPublishRequest request, CancellationToken cancellationToken)
@@ -66,6 +71,13 @@ public sealed class MqttOutbox(
             return;
         }
 
+        var maxMessages = Math.Max(mqtt.OutboxMaxMessages, 1_000);
+        var cachedPending = Interlocked.Read(ref _pendingCount);
+        if (cachedPending >= maxMessages)
+        {
+            throw new IOException($"MQTT离线队列已达到容量上限 {mqtt.OutboxMaxMessages}，拒绝继续写入。");
+        }
+
         var template = await templateResolver.ResolveAsync(request.TemplateId, cancellationToken);
         var context = new MqttPayloadContext(mqtt.GatewayId, GatewayVersion, request.GroupName, request.Line);
         var topic = topicBuilder.Build(request.TopicTemplate, request.DeviceData, context);
@@ -73,13 +85,17 @@ public sealed class MqttOutbox(
 
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
-        var pending = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
-            "SELECT COUNT(1) FROM mqtt_outbox;",
-            transaction: transaction,
-            cancellationToken: cancellationToken));
-        if (pending >= Math.Max(mqtt.OutboxMaxMessages, 1_000))
+        if (cachedPending < 0)
         {
-            throw new IOException($"MQTT离线队列已达到容量上限 {mqtt.OutboxMaxMessages}，拒绝继续写入。");
+            cachedPending = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+                "SELECT COUNT(1) FROM mqtt_outbox;",
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+            Interlocked.Exchange(ref _pendingCount, cachedPending);
+            if (cachedPending >= maxMessages)
+            {
+                throw new IOException($"MQTT离线队列已达到容量上限 {mqtt.OutboxMaxMessages}，拒绝继续写入。");
+            }
         }
 
         await connection.ExecuteAsync(new CommandDefinition(
@@ -102,6 +118,7 @@ public sealed class MqttOutbox(
             transaction,
             cancellationToken: cancellationToken));
         await transaction.CommitAsync(cancellationToken);
+        Interlocked.Increment(ref _pendingCount);
     }
 
     public async ValueTask<IReadOnlyList<MqttOutboxItem>> ReadBatchAsync(int size, CancellationToken cancellationToken)
@@ -125,10 +142,14 @@ public sealed class MqttOutbox(
     public async ValueTask MarkPublishedAsync(long id, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(
+        var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "DELETE FROM mqtt_outbox WHERE id = @Id;",
             new { Id = id },
             cancellationToken: cancellationToken));
+        if (deleted > 0)
+        {
+            Interlocked.Add(ref _pendingCount, -deleted);
+        }
     }
 
     public async ValueTask DiscardAsync(long id, CancellationToken cancellationToken)
@@ -142,6 +163,7 @@ public sealed class MqttOutbox(
         await connection.ExecuteAsync(new CommandDefinition(
             "DELETE FROM mqtt_outbox;",
             cancellationToken: cancellationToken));
+        Interlocked.Exchange(ref _pendingCount, 0);
     }
 
     public async ValueTask<int> PruneStaleAsync(GatewaySnapshot snapshot, CancellationToken cancellationToken)
@@ -157,12 +179,18 @@ public sealed class MqttOutbox(
             """,
             cancellationToken: cancellationToken));
         var staleIds = items.Where(item => !IsCurrent(item, snapshot)).Select(item => item.Id).ToArray();
+        var totalDeleted = 0;
         foreach (var batch in staleIds.Chunk(500))
         {
-            await connection.ExecuteAsync(new CommandDefinition(
+            totalDeleted += await connection.ExecuteAsync(new CommandDefinition(
                 "DELETE FROM mqtt_outbox WHERE id IN @Ids;",
                 new { Ids = batch },
                 cancellationToken: cancellationToken));
+        }
+
+        if (totalDeleted > 0)
+        {
+            Interlocked.Add(ref _pendingCount, -totalDeleted);
         }
 
         return staleIds.Length;
@@ -237,6 +265,10 @@ public sealed class MqttOutbox(
         }
 
         await transaction.CommitAsync(cancellationToken);
+        if (item.Attempts + 1 >= maxAttempts)
+        {
+            Interlocked.Decrement(ref _pendingCount);
+        }
     }
 
     public async ValueTask<MqttOutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
@@ -250,6 +282,7 @@ public sealed class MqttOutbox(
                 COALESCE((SELECT MIN(created_at_utc) FROM mqtt_outbox), '') AS OldestCreatedAtUtc;
             """,
             cancellationToken: cancellationToken));
+        Interlocked.Exchange(ref _pendingCount, row.PendingMessages);
         var oldestAge = string.IsNullOrEmpty(row.OldestCreatedAtUtc)
             ? 0
             : Math.Max(0, (long)(DateTimeOffset.UtcNow - DateTimeOffset.Parse(row.OldestCreatedAtUtc)).TotalSeconds);

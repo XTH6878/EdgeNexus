@@ -1,9 +1,3 @@
-using HslCommunication.Core.Address;
-using HslCommunication.Profinet.Delta;
-using HslCommunication.Profinet.Inovance;
-using HslCommunication.Profinet.Keyence;
-using HslCommunication.Profinet.Melsec;
-using HslCommunication.Profinet.Panasonic;
 using Snet.Edge.Application;
 using Snet.Edge.Domain;
 using Snet.Edge.Infrastructure;
@@ -94,14 +88,23 @@ public sealed class ProtocolPointAddressCatalogTests
     }
 
     [Theory]
-    [InlineData(InovanceSeries.AM, "SD100", 3)]
-    [InlineData(InovanceSeries.AM, "Q0", 1)]
-    [InlineData(InovanceSeries.AM, "M100", 1)]
-    [InlineData(InovanceSeries.H3U, "D100", 3)]
-    [InlineData(InovanceSeries.H5U, "X0", 1)]
-    public void InovanceExamplesPassTheHslAddressTranslator(InovanceSeries series, string address, byte functionCode)
+    [InlineData(InovancePlcSeries.AM, "SD100", 3)]
+    [InlineData(InovancePlcSeries.AM, "Q0", 1)]
+    [InlineData(InovancePlcSeries.AM, "M100", 1)]
+    [InlineData(InovancePlcSeries.H3U, "D100", 3)]
+    [InlineData(InovancePlcSeries.H5U, "X0", 1)]
+    public void InovanceExamplesPassTheHslAddressTranslator(InovancePlcSeries series, string address, byte functionCode)
     {
-        using var client = new InovanceTcpNet { Series = series };
+        using var client = new InovanceTcpNet
+        {
+            Series = series switch
+            {
+                InovancePlcSeries.AM => InovanceSeries.AM,
+                InovancePlcSeries.H3U => InovanceSeries.H3U,
+                InovancePlcSeries.H5U => InovanceSeries.H5U,
+                _ => InovanceSeries.Easy
+            }
+        };
         var result = client.TranslateToModbusAddress(address, functionCode);
 
         Assert.True(result.IsSuccess, result.Message);

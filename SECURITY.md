@@ -114,7 +114,7 @@ Authentication__RequireHttps=true
 - 复核 SQLite Schema 和事务行为。
 - 更新 `CHANGELOG.md`。
 
-HslCommunication 还可能涉及商业授权；授权问题不等同于漏洞，但必须在发布前单独核对。
+所有第三方依赖均应保持开源许可证合规，不引入闭源收费或含运行时长限制的组件。
 
 ## 日志脱敏
 

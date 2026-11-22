@@ -79,7 +79,7 @@ flowchart LR
     App["Snet.Edge.Application"]
     Domain["Snet.Edge.Domain"]
     Infra["Snet.Edge.Infrastructure"]
-    Plc["HSL / OPC UA 驱动"]
+    Plc["内置原生异步 PLC / OPC UA 驱动"]
     Db["SQLite 配置与 Outbox"]
     Broker["MQTT Broker"]
 
@@ -229,6 +229,6 @@ Windows 解压后运行 `Snet.Edge.WebApi.exe` 或启动脚本；Linux 解压后
 
 ## License
 
-当前仓库尚未包含 `LICENSE` 文件。在项目所有者明确选择并提交许可证前，源码不应被视为已授予开源使用、修改或分发许可。
+本项目采用 [Apache License 2.0](LICENSE) 开源许可发布。
 
-第三方组件还可能有独立授权要求，特别是 HslCommunication。正式发布或商业部署前应由项目所有者核对全部依赖许可证与商业授权。
+南向 11 种 PLC 协议均由内置纯 `.NET 10` 原生异步 Socket/UDP 协议栈（`NativePlcProtocols`）实现，OPC UA 基于 MIT 许可的 `OPCFoundation.NetStandard.Opc.Ua.Client`，已完全移除第三方商业闭源通信库依赖，无运行时长或点位授权限制。

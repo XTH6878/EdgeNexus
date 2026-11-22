@@ -614,8 +614,7 @@ SignalR 路径：
 
 - 文件名大小写敏感。
 - 数据目录权限必须正确。
-- 桌面 HSL DLL 若依赖 .NET Framework/WinForms，不能用于 Linux。
-- 当前项目使用 HslCommunication 12.9.1 netstandard 兼容包。
+- 当前项目使用内置纯 `.NET 10` 原生异步 Socket/UDP 协议栈（`NativePlcProtocols`），无任何 Windows 专属 DLL 或第三方商业库限制。
 - OPC UA 证书目录权限必须允许服务用户访问。
 
 ## 44. Docker 特有注意

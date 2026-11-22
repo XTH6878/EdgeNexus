@@ -14,6 +14,7 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
 {
     private const int SingletonId = 1;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private GatewaySnapshot? _cachedActiveSnapshot;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
@@ -54,6 +55,11 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
             cancellationToken: cancellationToken));
         if (exists != 0)
         {
+            var existingPayload = await connection.QuerySingleAsync<string>(new CommandDefinition(
+                "SELECT active_payload FROM gateway_state WHERE id = @Id;",
+                new { Id = SingletonId },
+                cancellationToken: cancellationToken));
+            Volatile.Write(ref _cachedActiveSnapshot, Deserialize(existingPayload));
             return;
         }
 
@@ -61,10 +67,22 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         await InsertInitialStateAsync(connection, initial, transaction, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        Volatile.Write(ref _cachedActiveSnapshot, initial);
     }
 
-    public ValueTask<GatewaySnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
-        ReadPayloadAsync("active_payload", cancellationToken);
+    public async ValueTask<GatewaySnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var cached = Volatile.Read(ref _cachedActiveSnapshot);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        var loaded = await ReadPayloadAsync("active_payload", cancellationToken);
+        Volatile.Write(ref _cachedActiveSnapshot, loaded);
+        return loaded;
+    }
 
     public ValueTask<GatewaySnapshot> GetDraftSnapshotAsync(CancellationToken cancellationToken) =>
         ReadPayloadAsync("draft_payload", cancellationToken);
@@ -271,7 +289,8 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
                 transaction,
                 cancellationToken: cancellationToken));
 
-            var activePayload = Serialize(Deserialize(state.ActivePayload) with { Mqtt = options });
+            var nextActiveSnapshot = Deserialize(state.ActivePayload) with { Mqtt = options };
+            var activePayload = Serialize(nextActiveSnapshot);
             var draftPayload = Serialize(Deserialize(state.DraftPayload) with { Mqtt = options });
             var nextVersion = state.ActiveVersion + 1;
             var publishedAt = DateTimeOffset.UtcNow;
@@ -298,6 +317,7 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
                 transaction,
                 cancellationToken: cancellationToken));
             await transaction.CommitAsync(cancellationToken);
+            Volatile.Write(ref _cachedActiveSnapshot, nextActiveSnapshot);
             return new PublishResult(nextVersion, publishedAt);
         }
         finally
@@ -417,6 +437,7 @@ public sealed class SqliteGatewayConfigurationStore(string connectionString) :
                 transaction,
                 cancellationToken: cancellationToken));
             await transaction.CommitAsync(cancellationToken);
+            Volatile.Write(ref _cachedActiveSnapshot, Deserialize(payload));
             return new PublishResult(nextVersion, publishedAt);
         }
         finally

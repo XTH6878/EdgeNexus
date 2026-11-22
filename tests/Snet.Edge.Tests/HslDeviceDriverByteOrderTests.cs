@@ -1,7 +1,3 @@
-using HslCommunication;
-using HslCommunication.Core;
-using HslCommunication.Profinet.Melsec;
-using HslCommunication.Profinet.Omron;
 using Snet.Edge.Application;
 using Snet.Edge.Domain;
 using Snet.Edge.Infrastructure;
@@ -11,11 +7,11 @@ namespace Snet.Edge.Tests;
 public sealed class HslDeviceDriverByteOrderTests
 {
     [Theory]
-    [InlineData("ABCD", DataFormat.ABCD)]
-    [InlineData("BADC", DataFormat.BADC)]
-    [InlineData("CDAB", DataFormat.CDAB)]
-    [InlineData("DCBA", DataFormat.DCBA)]
-    public async Task MitsubishiUsesPlainAddressAndConfiguredByteOrder(string byteOrder, DataFormat expectedFormat)
+    [InlineData("ABCD", "ABCD")]
+    [InlineData("BADC", "BADC")]
+    [InlineData("CDAB", "CDAB")]
+    [InlineData("DCBA", "DCBA")]
+    public async Task MitsubishiUsesPlainAddressAndConfiguredByteOrder(string byteOrder, string expectedFormat)
     {
         var client = new RecordingMelsecClient();
         await using var driver = new HslDeviceDriver(
@@ -36,7 +32,7 @@ public sealed class HslDeviceDriverByteOrderTests
 
         Assert.Equal(42UL, value);
         Assert.Equal("D100", client.LastAddress);
-        Assert.Equal(expectedFormat, client.ReadDataFormat);
+        Assert.Equal(Enum.Parse<DataFormat>(expectedFormat), client.ReadDataFormat);
     }
 
     [Fact]
