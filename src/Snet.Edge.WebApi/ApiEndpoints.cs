@@ -824,7 +824,7 @@ public static class ApiEndpoints
         var publishRequest = ToPublishRequest(request, template);
         var context = new MqttPayloadContext(
             mqtt.GatewayId,
-            typeof(ApiEndpoints).Assembly.GetName().Version?.ToString(3) ?? "1.0.0",
+            typeof(ApiEndpoints).Assembly.GetName().Version?.ToString(3) ?? "1.1.0",
             publishRequest.GroupName,
             publishRequest.Line);
         var topic = topicBuilder.Build(publishRequest.TopicTemplate, publishRequest.DeviceData, context);

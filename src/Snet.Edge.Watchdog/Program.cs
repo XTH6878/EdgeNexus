@@ -25,7 +25,7 @@ try
             services.AddHttpClient("gateway-health", client =>
             {
                 client.Timeout = Timeout.InfiniteTimeSpan;
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Snet.Edge.Watchdog/1.0");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Snet.Edge.Watchdog/1.1");
             });
             services.AddHostedService<GatewayWatchdogWorker>();
         })

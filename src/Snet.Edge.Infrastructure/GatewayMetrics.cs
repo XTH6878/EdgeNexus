@@ -38,7 +38,7 @@ public sealed class GatewayMetrics : IGatewayMetrics, IDisposable
 {
     public const string MeterName = "Snet.Edge.Gateway";
 
-    private readonly Meter _meter = new(MeterName, "1.0.0");
+    private readonly Meter _meter = new(MeterName, "1.1.0");
     private readonly Counter<long> _acquisitionSuccess;
     private readonly Counter<long> _acquisitionFailure;
     private readonly Counter<long> _tagSamples;

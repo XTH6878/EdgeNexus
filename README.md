@@ -2,7 +2,7 @@
 
 EdgeNexus 是面向 Windows、Linux 工控机的工业边缘采集网关。项目使用 .NET 10，将 PLC、OPC UA 等南向数据统一转换为设备与点位模型，再通过可配置 MQTT 模板、SQLite Store and Forward 和异步后台服务可靠上传。
 
-当前发布版本：`V1.0`。
+当前发布版本：`V1.1`。
 
 > 本页只描述当前源码已经实现的能力。完整设计、公共类型、配置项、HTTP API 和测试证据从 [文档中心](docs/INDEX.md) 进入。
 
@@ -206,12 +206,12 @@ dotnet test tests/Snet.Edge.Tests/Snet.Edge.Tests.csproj -c Release
 
 当前测试内容和真实样例索引见 [Samples and Tests](docs/Samples-and-Tests.md)。容量测试中的 1000 设备是进程内并发模型冒烟测试，不等于对 1000 台真实 PLC 的现场性能认证。
 
-## V1.0 Release 包
+## V1.1 Release 包
 
-`V1.0` 发布同时提供两个自包含 x64 资产，无需预装 .NET Runtime：
+`V1.1` 发布同时提供两个自包含 x64 资产，无需预装 .NET Runtime：
 
-- `EdgeNexus-V1.0-win-x64.zip`
-- `EdgeNexus-V1.0-linux-x64.tar.gz`
+- `EdgeNexus-V1.1-win-x64.zip`
+- `EdgeNexus-V1.1-linux-x64.tar.gz`
 
 Windows 解压后运行 `Snet.Edge.WebApi.exe` 或启动脚本；Linux 解压后为 `Snet.Edge.WebApi` 增加执行权限并运行。生产环境仍推荐按 [Deployment](docs/Deployment.md) 配置服务账户、数据目录和 TLS。
 

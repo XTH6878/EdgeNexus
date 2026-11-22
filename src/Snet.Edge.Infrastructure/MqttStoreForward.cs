@@ -17,7 +17,7 @@ public sealed class MqttOutbox(
     IMqttPayloadBuilder payloadBuilder,
     ITopicBuilder topicBuilder) : IMqttMessagePublisher, IMqttOutboxMonitor, IMqttOutboxConfigurationSynchronizer
 {
-    private static readonly string GatewayVersion = typeof(MqttOutbox).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    private static readonly string GatewayVersion = typeof(MqttOutbox).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
     private long _pendingCount = -1;
 
     public async ValueTask InitializeAsync(CancellationToken cancellationToken)
