@@ -418,6 +418,14 @@ sequenceDiagram
 - Modbus：保存前调用 `ModbusTagAddress.Normalize`。
 - 成功：替换该设备全部草稿点位，HTTP 204。
 
+### 12.5 `POST /api/v1/devices/{deviceId}/write`
+
+- 鉴权：Admin。
+- 路径参数：`deviceId`（支持设备 `MqttDeviceId`、设备名称或设备 `Guid`）。
+- 请求体：`DeviceWriteRequest(CommandId, Timestamp, TtlMs, Writes)`。
+- 服务：`IDeviceWriteService.ExecuteAsync`（执行点位写权限、安全量程、TTL 过期、幂等去重、流控校验，逆向工程值换算，复用采集连接写入并立即回读校验）。
+- 响应：全部点位反写成功返回 HTTP 200（`DeviceWriteAck`）；校验拦截或反写失败返回 HTTP 422（`DeviceWriteAck`）；点位列表为空返回 HTTP 400。
+
 ## 13. MQTT 配置 API
 
 ### 13.1 `PUT /api/v1/mqtt/config`

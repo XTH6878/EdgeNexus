@@ -88,7 +88,35 @@ public interface IDeviceDriver : IAsyncDisposable
     ValueTask ConnectAsync(CancellationToken cancellationToken);
     ValueTask<object?> ReadAsync(TagDefinition tag, CancellationToken cancellationToken);
     ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyAsync(CancellationToken cancellationToken);
+    ValueTask WriteAsync(TagDefinition tag, object value, CancellationToken cancellationToken) =>
+        ValueTask.FromException(new NotSupportedException($"协议 {Protocol} 驱动未实现写入。"));
     ValueTask DisconnectAsync(CancellationToken cancellationToken);
+}
+
+public sealed record DriverTagWriteExecution(
+    object WrittenRawValue,
+    object? ReadBackEngineeringValue,
+    string? Error = null)
+{
+    public bool IsSuccess => Error is null;
+}
+
+public interface IDeviceCommandExecutor
+{
+    ValueTask<DriverTagWriteExecution> ExecuteTagWriteAsync(
+        MqttGroup group,
+        DeviceDefinition device,
+        TagDefinition tag,
+        object rawValue,
+        CancellationToken cancellationToken);
+}
+
+public interface IDeviceWriteService
+{
+    ValueTask<DeviceWriteAck> ExecuteAsync(
+        DeviceWriteCommand command,
+        string sourceChannel,
+        CancellationToken cancellationToken);
 }
 
 public interface IDeviceDriverFactory

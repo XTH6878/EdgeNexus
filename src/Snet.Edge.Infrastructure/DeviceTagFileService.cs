@@ -199,6 +199,9 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
             PublishOnChange = OptionalBool(row, "publishonchange", existing?.PublishOnChange ?? false, errors),
             Deadband = OptionalDecimal(row, "deadband", existing?.Deadband ?? 0M, 0M, decimal.MaxValue, errors),
             StringLength = OptionalInt(row, "stringlength", existing?.StringLength ?? 32, 1, 65_535, errors),
+            Writable = OptionalBool(row, "writable", existing?.Writable ?? false, errors),
+            MinWriteValue = existing?.MinWriteValue,
+            MaxWriteValue = existing?.MaxWriteValue,
             Remark = Optional(row, "remark", existing?.Remark ?? string.Empty)
         };
 

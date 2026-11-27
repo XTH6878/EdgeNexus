@@ -49,6 +49,11 @@ public static class TagProtocolValidator
             errors.Add($"Modbus 点位 {tag.Name} 使用功能码 03/04 时，数据类型不能为 Bool。");
         }
 
+        if (tag.Writable && functionCode is ModbusFunctionCode.ReadDiscreteInputs or ModbusFunctionCode.ReadInputRegisters)
+        {
+            errors.Add($"Modbus 点位 {tag.Name} 使用只读功能码 02/04 时不允许开启反写。");
+        }
+
         return errors;
     }
 }

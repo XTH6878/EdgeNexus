@@ -416,6 +416,30 @@ public static class ApiEndpoints
             return Results.NoContent();
         });
 
+        api.MapPost("/devices/{deviceId}/write", async (
+            string deviceId,
+            DeviceWriteRequest request,
+            HttpContext httpContext,
+            IDeviceWriteService writeService,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Writes is null || request.Writes.Count == 0)
+            {
+                return Results.BadRequest(new { error = "反写点位列表不能为空。" });
+            }
+
+            var actor = httpContext.User.Identity?.Name ?? "Admin";
+            var command = new DeviceWriteCommand(
+                string.IsNullOrWhiteSpace(request.CommandId) ? Guid.NewGuid().ToString("N") : request.CommandId.Trim(),
+                deviceId,
+                request.Timestamp ?? DateTimeOffset.UtcNow,
+                request.Writes,
+                request.TtlMs,
+                actor);
+            var ack = await writeService.ExecuteAsync(command, "REST", cancellationToken);
+            return ack.Success ? Results.Ok(ack) : Results.UnprocessableEntity(ack);
+        });
+
         api.MapPut("/mqtt/config", async (MqttOptions options, IGatewayConfigurationStore store, CancellationToken cancellationToken) =>
         {
             if (ValidateMqttOptions(options) is { } error)
@@ -764,6 +788,30 @@ public static class ApiEndpoints
             return "MQTT QoS、Outbox容量或补传策略无效。";
         }
 
+        if (options.WriteBackEnabled)
+        {
+            if (MqttTopicTemplateValidator.Validate(options.WriteCommandTopicTemplate) is { } cmdErr)
+            {
+                return $"反写命令Topic无效：{cmdErr}";
+            }
+
+            if (MqttTopicTemplateValidator.Validate(options.WriteAckTopicTemplate) is { } ackErr)
+            {
+                return $"反写回执Topic无效：{ackErr}";
+            }
+
+            if (string.Equals(options.WriteCommandTopicTemplate, options.WriteAckTopicTemplate, StringComparison.Ordinal))
+            {
+                return "反写命令Topic与回执Topic不能相同。";
+            }
+
+            if (options.WriteCommandDefaultTtlMs is < 500 or > 300_000 ||
+                options.WriteMaxRequestsPerSecondPerDevice is < 1 or > 1_000)
+            {
+                return "反写命令TTL必须在500ms-300000ms之间，单设备每秒限流必须在1-1000之间。";
+            }
+        }
+
         return null;
     }
 
@@ -888,6 +936,11 @@ public static class ApiEndpoints
     }
 
     public sealed record PingRequest(string Host, int TimeoutMs = 1_000);
+    public sealed record DeviceWriteRequest(
+        string? CommandId,
+        DateTimeOffset? Timestamp,
+        int? TtlMs,
+        IReadOnlyList<TagWriteItem> Writes);
     public sealed record MqttTemplatePreviewTag(string TagName, object? Value, DataQuality Quality);
     public sealed record MqttTemplatePreviewRequest(
         Guid TemplateId,

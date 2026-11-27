@@ -76,10 +76,13 @@ public static class ServiceCollectionExtensions
             connectionString,
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AuditLogStore>>()));
         services.AddSingleton<IAuditLogStore>(provider => provider.GetRequiredService<AuditLogStore>());
+        services.AddSingleton<AcquisitionWorker>();
+        services.AddSingleton<IDeviceCommandExecutor>(provider => provider.GetRequiredService<AcquisitionWorker>());
+        services.AddSingleton<IDeviceWriteService, DeviceWriteService>();
         services.AddHostedService<InfrastructureInitializer>();
         services.AddHostedService<ResourceMonitorWorker>();
         services.AddHostedService(provider => provider.GetRequiredService<AuditLogStore>());
-        services.AddHostedService<AcquisitionWorker>();
+        services.AddHostedService(provider => provider.GetRequiredService<AcquisitionWorker>());
         services.AddHostedService<TelemetryAggregationWorker>();
         services.AddHostedService<DeviceHealthMonitor>();
         services.AddHostedService<MqttStoreForwardWorker>();

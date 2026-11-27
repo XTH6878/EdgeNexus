@@ -1204,6 +1204,22 @@
                         <el-input-number v-model="row.deadband" :min="0" :controls="false" size="small" :disabled="!row.onChange" style="width: 72px;"></el-input-number>
                     </template>
                 </el-table-column>
+                <el-table-column label="允许反写" width="85" align="center">
+                    <template #default="{ row }">
+                        <el-tooltip content="默认只读；开启后允许通过MQTT下行或REST API反写该PLC点位。" placement="top">
+                            <el-switch v-model="row.writable" :disabled="currentDevice.protocol === 'ModbusTcp' && ['ReadDiscreteInputs','ReadInputRegisters'].includes(row.functionCode)" style="--el-switch-on-color: var(--snet-warning);"></el-switch>
+                        </el-tooltip>
+                    </template>
+                </el-table-column>
+                <el-table-column label="反写量程 (Min~Max)" width="160" align="center">
+                    <template #default="{ row }">
+                        <div style="display:flex;gap:4px;align-items:center;">
+                            <el-input v-model="row.minWriteValue" size="small" placeholder="下限" :disabled="!row.writable || ['Bool','String'].includes(row.dataType)" style="width:68px;"></el-input>
+                            <span style="color:var(--edge-muted);">~</span>
+                            <el-input v-model="row.maxWriteValue" size="small" placeholder="上限" :disabled="!row.writable || ['Bool','String'].includes(row.dataType)" style="width:68px;"></el-input>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column label="质量" width="90" align="center">
                     <template #default="{ row }">
                         <el-tooltip :content="row.sampleError || qualityLabel(row.quality)" :disabled="!row.sampleError" placement="top">

@@ -651,6 +651,9 @@ const app = createApp({
         functionCode: tag.modbusFunctionCode || modbus.functionCode,
         endian: tag.byteOrder,
         onChange: tag.publishOnChange,
+        writable: Boolean(tag.writable),
+        minWriteValue: tag.minWriteValue ?? '',
+        maxWriteValue: tag.maxWriteValue ?? '',
         rawVal: '—',
         finalVal: '—',
         quality: 'Disconnected',
@@ -676,6 +679,7 @@ const app = createApp({
       id: crypto.randomUUID(),
       name: '新测点', address: '', functionCode: 'ReadHoldingRegisters', dataType: 'Int16', endian: 'ABCD',
       operator: '*', operand: 1, decimals: 1, onChange: false, deadband: 0, stringLength: 32,
+      writable: false, minWriteValue: '', maxWriteValue: '',
       rawVal: '—', finalVal: '—', quality: 'Disconnected', sampleError: '', sampledAt: null, remark: ''
     });
 
@@ -693,6 +697,9 @@ const app = createApp({
         onChange: false,
         deadband: 0,
         stringLength: 32,
+        writable: false,
+        minWriteValue: '',
+        maxWriteValue: '',
         rawVal: '—',
         finalVal: '—',
         quality: 'Disconnected',
@@ -801,6 +808,9 @@ const app = createApp({
           publishOnChange: Boolean(tag.onChange),
           deadband: Number(tag.deadband ?? 0),
           stringLength: Number(tag.stringLength ?? 32),
+          writable: Boolean(tag.writable),
+          minWriteValue: tag.minWriteValue !== '' && tag.minWriteValue !== null && tag.minWriteValue !== undefined ? Number(tag.minWriteValue) : null,
+          maxWriteValue: tag.maxWriteValue !== '' && tag.maxWriteValue !== null && tag.maxWriteValue !== undefined ? Number(tag.maxWriteValue) : null,
           remark: tag.remark || null
         }));
         await api(`/api/v1/devices/${currentDevice.value.id}/tags`, { method: 'PUT', body: tags });

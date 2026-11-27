@@ -206,6 +206,9 @@ public sealed record TagDefinition
     public bool PublishOnChange { get; init; }
     public decimal Deadband { get; init; }
     public int StringLength { get; init; } = 32;
+    public bool Writable { get; init; }
+    public decimal? MinWriteValue { get; init; }
+    public decimal? MaxWriteValue { get; init; }
     public string? Remark { get; init; }
 }
 
@@ -227,7 +230,56 @@ public sealed record MqttOptions
     public int OutboxMaxMessages { get; init; } = 500_000;
     public int MaxPublishAttempts { get; init; } = 20;
     public int ReplayMaxMessagesPerSecond { get; init; } = 200;
+    public bool WriteBackEnabled { get; init; } = true;
+    public string WriteCommandTopicTemplate { get; init; } = "edge/${gatewayId}/cmd/${deviceId}/write";
+    public string WriteAckTopicTemplate { get; init; } = "edge/${gatewayId}/ack/${deviceId}/write";
+    public int WriteCommandDefaultTtlMs { get; init; } = 10_000;
+    public int WriteMaxRequestsPerSecondPerDevice { get; init; } = 20;
 }
+
+public enum TagWriteStatus
+{
+    Success,
+    RejectedReadOnly,
+    OutOfRange,
+    TagNotFound,
+    InvalidValue,
+    DeviceOffline,
+    ProtocolError,
+    ReadBackMismatch,
+    Expired,
+    RateLimited
+}
+
+public sealed record TagWriteItem(
+    string Tag,
+    object? Value);
+
+public sealed record DeviceWriteCommand(
+    string CommandId,
+    string DeviceId,
+    DateTimeOffset Timestamp,
+    IReadOnlyList<TagWriteItem> Writes,
+    int? TtlMs = null,
+    string? Operator = null);
+
+public sealed record TagWriteResult(
+    string Tag,
+    TagWriteStatus Status,
+    object? RequestedValue,
+    object? WrittenRawValue,
+    object? ReadBackValue,
+    string? Error = null);
+
+public sealed record DeviceWriteAck(
+    string CommandId,
+    string DeviceId,
+    bool Success,
+    bool Deduplicated,
+    long ElapsedMs,
+    DateTimeOffset Timestamp,
+    IReadOnlyList<TagWriteResult> Results,
+    string? Error = null);
 
 public enum MqttConnectionState
 {

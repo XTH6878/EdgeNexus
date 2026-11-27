@@ -348,12 +348,20 @@ public sealed class MqttStoreForwardWorker(
     INetworkConfigurationService networkConfiguration,
     IMqttRuntimeStateStore runtimeState,
     IGatewayMetrics metrics,
-    ILogger<MqttStoreForwardWorker> logger) : BackgroundService
+    ILogger<MqttStoreForwardWorker> logger,
+    IDeviceWriteService? deviceWriteService = null) : BackgroundService
 {
+    private static readonly System.Text.Json.JsonSerializerOptions DownlinkJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var factory = new MqttClientFactory();
         using var client = factory.CreateMqttClient();
+        client.ApplicationMessageReceivedAsync += args => HandleDownlinkMessageAsync(client, args, stoppingToken);
         var reconnectDelay = TimeSpan.FromSeconds(1);
         bool? previousStoreAndForwardEnabled = null;
         var appliedNetworkRevision = -1L;
@@ -434,6 +442,19 @@ public sealed class MqttStoreForwardWorker(
                         reconnectDelay = TimeSpan.FromSeconds(1);
                         appliedNetworkRevision = networkRevision;
                         appliedOptions = mqtt;
+                        if (mqtt.WriteBackEnabled && deviceWriteService is not null)
+                        {
+                            var subscribeFilter = BuildCommandSubscriptionFilter(mqtt.WriteCommandTopicTemplate, mqtt.GatewayId);
+                            var subscribeOptions = new MqttClientSubscribeOptionsBuilder()
+                                .WithTopicFilter(filter => filter
+                                    .WithTopic(subscribeFilter)
+                                    .WithQualityOfServiceLevel((MQTTnet.Protocol.MqttQualityOfServiceLevel)Math.Clamp(mqtt.Qos, 0, 2))
+                                    .WithNoLocal())
+                                .Build();
+                            await client.SubscribeAsync(subscribeOptions, stoppingToken);
+                            logger.LogInformation("MQTT已订阅下行反写命令Topic: {TopicFilter}", subscribeFilter);
+                        }
+
                         SetRuntimeStatus(
                             MqttConnectionState.Connected,
                             mqtt,
@@ -607,6 +628,148 @@ public sealed class MqttStoreForwardWorker(
         }
     }
 
+    internal static string BuildCommandSubscriptionFilter(string template, string gatewayId)
+    {
+        var segments = template.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var seg = segments[i].Replace("${gatewayId}", gatewayId, StringComparison.Ordinal);
+            if (seg.Contains("${", StringComparison.Ordinal))
+            {
+                segments[i] = "+";
+            }
+            else
+            {
+                segments[i] = seg;
+            }
+        }
+
+        return string.Join('/', segments);
+    }
+
+    internal static bool TryMatchCommandTopic(
+        string template,
+        string gatewayId,
+        string actualTopic,
+        out string? extractedDeviceId)
+    {
+        extractedDeviceId = null;
+        var templateSegments = template.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var actualSegments = actualTopic.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (templateSegments.Length != actualSegments.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < templateSegments.Length; i++)
+        {
+            var expected = templateSegments[i].Replace("${gatewayId}", gatewayId, StringComparison.Ordinal);
+            if (string.Equals(expected, "${deviceId}", StringComparison.Ordinal) ||
+                string.Equals(expected, "${deviceName}", StringComparison.Ordinal))
+            {
+                extractedDeviceId = actualSegments[i];
+                continue;
+            }
+
+            if (expected.Contains("${", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.Equals(expected, actualSegments[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static string BuildAckTopic(string ackTemplate, string gatewayId, string deviceId) =>
+        ackTemplate
+            .Replace("${gatewayId}", gatewayId, StringComparison.Ordinal)
+            .Replace("${deviceId}", deviceId, StringComparison.Ordinal)
+            .Replace("${deviceName}", deviceId, StringComparison.Ordinal)
+            .Replace("${line}", "default", StringComparison.Ordinal);
+
+    private async Task HandleDownlinkMessageAsync(
+        IMqttClient client,
+        MqttApplicationMessageReceivedEventArgs args,
+        CancellationToken stoppingToken)
+    {
+        if (deviceWriteService is null || args.ApplicationMessage.Retain)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = await configurationStore.GetSnapshotAsync(stoppingToken);
+            var mqtt = snapshot.Mqtt;
+            if (!mqtt.Enabled || !mqtt.WriteBackEnabled)
+            {
+                return;
+            }
+
+            var topic = args.ApplicationMessage.Topic ?? string.Empty;
+            if (!TryMatchCommandTopic(mqtt.WriteCommandTopicTemplate, mqtt.GatewayId, topic, out var topicDeviceId))
+            {
+                return;
+            }
+
+            var payloadBytes = args.ApplicationMessage.Payload;
+            var payloadText = payloadBytes.IsEmpty
+                ? string.Empty
+                : System.Buffers.BuffersExtensions.ToArray(payloadBytes) is { Length: > 0 } arr
+                    ? System.Text.Encoding.UTF8.GetString(arr)
+                    : string.Empty;
+
+            DeviceWriteCommand? command = null;
+            if (!string.IsNullOrWhiteSpace(payloadText))
+            {
+                command = System.Text.Json.JsonSerializer.Deserialize<DeviceWriteCommand>(payloadText, DownlinkJsonOptions);
+            }
+
+            if (command is null)
+            {
+                return;
+            }
+
+            var resolvedDeviceId = !string.IsNullOrWhiteSpace(command.DeviceId)
+                ? command.DeviceId
+                : topicDeviceId ?? string.Empty;
+            var normalizedCommand = command with
+            {
+                CommandId = string.IsNullOrWhiteSpace(command.CommandId) ? Guid.NewGuid().ToString("N") : command.CommandId,
+                DeviceId = resolvedDeviceId,
+                Timestamp = command.Timestamp == default ? DateTimeOffset.UtcNow : command.Timestamp
+            };
+
+            var ack = await deviceWriteService.ExecuteAsync(normalizedCommand, "MQTT", stoppingToken);
+            if (client.IsConnected)
+            {
+                var ackTopic = BuildAckTopic(
+                    mqtt.WriteAckTopicTemplate,
+                    mqtt.GatewayId,
+                    string.IsNullOrWhiteSpace(ack.DeviceId) ? resolvedDeviceId : ack.DeviceId);
+                var ackPayload = System.Text.Json.JsonSerializer.Serialize(ack, DownlinkJsonOptions);
+                var ackMessage = new MqttApplicationMessageBuilder()
+                    .WithTopic(ackTopic)
+                    .WithPayload(ackPayload)
+                    .WithQualityOfServiceLevel((MQTTnet.Protocol.MqttQualityOfServiceLevel)Math.Clamp(mqtt.Qos, 0, 2))
+                    .WithRetainFlag(false)
+                    .Build();
+                await client.PublishAsync(ackMessage, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "处理MQTT下行反写命令异常");
+        }
+    }
 }
 
 public sealed record MqttOutboxItem(

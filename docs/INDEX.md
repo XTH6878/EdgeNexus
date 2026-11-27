@@ -1,6 +1,6 @@
 # EdgeNexus 源码文档中心
 
-当前发布版本：`V1.0`。
+当前发布版本：`V1.2`。
 
 > 本文档集仅依据当前 Solution 源码生成。
 >
@@ -495,6 +495,7 @@ flowchart LR
 - `GET /api/v1/devices/{id:guid}/tags/export`
 - `POST /api/v1/devices/{id:guid}/tags/import/preview`
 - `PUT /api/v1/devices/{id:guid}/tags`
+- `POST /api/v1/devices/{deviceId}/write`
 
 ### 22.4 MQTT
 

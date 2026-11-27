@@ -8,6 +8,18 @@
 
 当前没有待发布变更。
 
+## [V1.2] - 2026-11-27
+
+### Added
+
+- 新增工业级 **MES-to-PLC 双向反写控制闭环**（支持全部 12 种工业协议：Siemens S7、Modbus TCP、Mitsubishi MC 3E/1E Binary/ASCII TCP/UDP、Keyence MC、Omron FINS、Omron CIP、Allen-Bradley EtherNet/IP、Beckhoff ADS、Panasonic Mewtocol、Inovance TCP、Delta TCP、OPC UA）：
+  - **双通道下行入口**：MQTT 下行指令订阅（默认 `edge/${gatewayId}/cmd/${deviceId}/write`）+ 上行回执（默认 `edge/${gatewayId}/ack/${deviceId}/write`），以及 HTTP REST API（`POST /api/v1/devices/{deviceId}/write`）。
+  - **采集连接复用与细粒度锁交织**：`AcquisitionWorker` 实现 `IDeviceCommandExecutor`，直接复用设备活跃长连接并在 `HslDeviceDriver` 单批次间隙完成写操作，执行写后立即回读校验（Read-after-Write）并即时刷新 `TelemetryBuffer`。
+  - **逆向工程值换算**：`DeviceWriteService` 自动根据点位 `Operator`（`+`、`-`、`*`、`/`）和 `Operand` 将 MES 工程值逆向换算为 PLC 寄存器原始值并按 `ByteOrder` 编码。
+  - **五道工业安全护栏与防读写回环**：点位级写权限（`TagDefinition.Writable` 默认 `false` 只读）、工程值安全量程（`MinWriteValue` / `MaxWriteValue`）、指令有效期拦截（`TtlMs` 防离线积压指令重连误动作）、`CommandId` 5 分钟滑动窗口幂等去重与单设备每秒反写流控、全量 `WRITE` 审计日志落盘，以及严格拒绝 MQTT Retain 命令与命令/采集 Topic 重叠。
+  - **Web 控制台点表反写配置**：设备点位字典编辑器新增“允许反写”开关与“反写量程 (Min~Max)”配置列，点表 Excel/CSV 导入自动保留写权限配置。
+- 新增 `DeviceWriteBackTests` 全链路反写与回路报文测试（自动化测试总数由 189 提升至 197 项并全部通过）。
+
 ## [V1.1] - 2026-11-22
 
 ### Added

@@ -16,10 +16,67 @@ public sealed class AcquisitionWorker(
     IGatewayMetrics metrics,
     AcquisitionStabilityOptions stabilityOptions,
     ILogger<AcquisitionWorker> logger,
-    INetworkConfigurationService? networkConfiguration = null) : BackgroundService
+    INetworkConfigurationService? networkConfiguration = null) : BackgroundService, IDeviceCommandExecutor
 {
     private readonly ConcurrentDictionary<Guid, DeviceLoop> _deviceLoops = new();
     private readonly ConcurrentDictionary<Guid, long> _lastTagErrorLogs = new();
+
+    public async ValueTask<DriverTagWriteExecution> ExecuteTagWriteAsync(
+        MqttGroup group,
+        DeviceDefinition device,
+        TagDefinition tag,
+        object rawValue,
+        CancellationToken cancellationToken)
+    {
+        if (_deviceLoops.TryGetValue(device.Id, out var loop) && loop.ActiveDriver is { } activeDriver)
+        {
+            return await WriteAndVerifyOnDriverAsync(activeDriver, group, device, tag, rawValue, cancellationToken);
+        }
+
+        await using var transientDriver = driverFactory.Create(device, [tag]);
+        await transientDriver.ConnectAsync(cancellationToken);
+        try
+        {
+            return await WriteAndVerifyOnDriverAsync(transientDriver, group, device, tag, rawValue, cancellationToken);
+        }
+        finally
+        {
+            try
+            {
+                await transientDriver.DisconnectAsync(CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                logger.LogDebug(exception, "设备 {DeviceName} 临时反写连接释放异常", device.Name);
+            }
+        }
+    }
+
+    private async ValueTask<DriverTagWriteExecution> WriteAndVerifyOnDriverAsync(
+        IDeviceDriver driver,
+        MqttGroup group,
+        DeviceDefinition device,
+        TagDefinition tag,
+        object rawValue,
+        CancellationToken cancellationToken)
+    {
+        await driver.WriteAsync(tag, rawValue, cancellationToken);
+        var readBackRaw = await driver.ReadAsync(tag, cancellationToken);
+        var readBackEngineering = Transform(readBackRaw, tag);
+        var timestamp = DateTimeOffset.UtcNow;
+        await telemetryBuffer.WriteAsync(new TagSample(
+            group.Id,
+            group.Topic,
+            device.Id,
+            device.Name,
+            tag.Id,
+            tag.Name,
+            readBackEngineering,
+            readBackRaw,
+            DataQuality.Good,
+            timestamp), cancellationToken);
+        return new DriverTagWriteExecution(rawValue, readBackEngineering);
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -110,12 +167,14 @@ public sealed class AcquisitionWorker(
 
             var tags = tagsByDevice[device.Id].ToArray();
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            var task = ExecuteDeviceLoopAsync(group, device, tags, cancellation.Token);
-            _deviceLoops[device.Id] = new DeviceLoop(device, group, tags, networkRevision, cancellation, task);
+            var loop = new DeviceLoop(device, group, tags, networkRevision, cancellation);
+            _deviceLoops[device.Id] = loop;
+            loop.Task = ExecuteDeviceLoopAsync(loop, group, device, tags, cancellation.Token);
         }
     }
 
     private async Task ExecuteDeviceLoopAsync(
+        DeviceLoop loop,
         MqttGroup group,
         DeviceDefinition device,
         IReadOnlyCollection<TagDefinition> tags,
@@ -154,6 +213,7 @@ public sealed class AcquisitionWorker(
                 }
 
                 await driver.ConnectAsync(cancellationToken);
+                loop.ActiveDriver = driver;
                 await ScanConnectedDeviceAsync(
                     group,
                     device,
@@ -194,6 +254,7 @@ public sealed class AcquisitionWorker(
             }
             finally
             {
+                loop.ActiveDriver = null;
                 try
                 {
                     await driver.DisconnectAsync(CancellationToken.None);
@@ -606,7 +667,7 @@ public sealed class AcquisitionWorker(
         }
     }
 
-    private static object? Transform(object? rawValue, TagDefinition tag)
+    internal static object? Transform(object? rawValue, TagDefinition tag)
     {
         if (rawValue is null || tag.DataType is TagDataType.Bool or TagDataType.String or TagDataType.Bcd)
         {
@@ -651,11 +712,19 @@ public sealed class AcquisitionWorker(
         _ => 0
     };
 
-    private sealed record DeviceLoop(
-        DeviceDefinition Device,
-        MqttGroup Group,
-        IReadOnlyList<TagDefinition> Tags,
-        long NetworkRevision,
-        CancellationTokenSource Cancellation,
-        Task Task);
+    private sealed class DeviceLoop(
+        DeviceDefinition device,
+        MqttGroup group,
+        IReadOnlyList<TagDefinition> tags,
+        long networkRevision,
+        CancellationTokenSource cancellation)
+    {
+        public DeviceDefinition Device { get; } = device;
+        public MqttGroup Group { get; } = group;
+        public IReadOnlyList<TagDefinition> Tags { get; } = tags;
+        public long NetworkRevision { get; } = networkRevision;
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+        public Task Task { get; set; } = Task.CompletedTask;
+        public volatile IDeviceDriver? ActiveDriver;
+    }
 }

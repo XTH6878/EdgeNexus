@@ -343,6 +343,41 @@ public sealed class HslDeviceDriver : IDeviceDriver
         }
     }
 
+    public async ValueTask WriteAsync(TagDefinition tag, object value, CancellationToken cancellationToken)
+    {
+        await _readGate.WaitAsync(cancellationToken);
+        try
+        {
+            await WriteCoreAsync(tag, value, cancellationToken);
+        }
+        finally
+        {
+            _readGate.Release();
+        }
+    }
+
+    private async ValueTask WriteCoreAsync(TagDefinition tag, object value, CancellationToken cancellationToken)
+    {
+        var protocolAddress = GetProtocolAddress(tag);
+        _client.ByteTransform.DataFormat = ResolveDataFormat(tag.ByteOrder);
+        OperateResult result = tag.DataType switch
+        {
+            TagDataType.Bool => await _client.WriteBoolAsync(protocolAddress, Convert.ToBoolean(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.Byte => await _client.WriteAsync(protocolAddress, [Convert.ToByte(value, System.Globalization.CultureInfo.InvariantCulture)]).WaitAsync(cancellationToken),
+            TagDataType.Int16 => await _client.WriteAsync(protocolAddress, Convert.ToInt16(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.UInt16 or TagDataType.Bcd => await _client.WriteAsync(protocolAddress, Convert.ToUInt16(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.Int32 => await _client.WriteAsync(protocolAddress, Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.UInt32 => await _client.WriteAsync(protocolAddress, Convert.ToUInt32(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.Int64 => await _client.WriteAsync(protocolAddress, Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.UInt64 => await _client.WriteAsync(protocolAddress, Convert.ToUInt64(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.Float32 => await _client.WriteAsync(protocolAddress, Convert.ToSingle(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.Float64 => await _client.WriteAsync(protocolAddress, Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)).WaitAsync(cancellationToken),
+            TagDataType.String => await _client.WriteAsync(protocolAddress, Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty, tag.StringLength).WaitAsync(cancellationToken),
+            _ => throw new NotSupportedException($"不支持写入数据类型 {tag.DataType}。")
+        };
+        EnsureSuccess(result);
+    }
+
     private async ValueTask<object?> ReadCoreAsync(TagDefinition tag, CancellationToken cancellationToken)
     {
         var protocolAddress = GetProtocolAddress(tag);
@@ -419,18 +454,8 @@ public sealed class HslDeviceDriver : IDeviceDriver
         return Decode(content, 0, tag);
     }
 
-    public async ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyAsync(CancellationToken cancellationToken)
-    {
-        await _readGate.WaitAsync(cancellationToken);
-        try
-        {
-            return await ReadManyCoreAsync(cancellationToken);
-        }
-        finally
-        {
-            _readGate.Release();
-        }
-    }
+    public ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyAsync(CancellationToken cancellationToken) =>
+        ReadManyCoreAsync(cancellationToken);
 
     private async ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyCoreAsync(CancellationToken cancellationToken)
     {
@@ -439,6 +464,8 @@ public sealed class HslDeviceDriver : IDeviceDriver
         {
             if (batch.UseNativeMultiRead)
             {
+                var fallbackToSingle = false;
+                await _readGate.WaitAsync(cancellationToken);
                 try
                 {
                     var addresses = batch.Tags.Select(GetProtocolAddress).ToArray();
@@ -460,6 +487,15 @@ public sealed class HslDeviceDriver : IDeviceDriver
                     }
                 }
                 catch (Exception exception) when (DeviceReadFailureClassifier.IsPointSpecific(exception))
+                {
+                    fallbackToSingle = true;
+                }
+                finally
+                {
+                    _readGate.Release();
+                }
+
+                if (fallbackToSingle)
                 {
                     foreach (var tag in batch.Tags)
                     {
@@ -483,6 +519,7 @@ public sealed class HslDeviceDriver : IDeviceDriver
         TagDefinition tag,
         CancellationToken cancellationToken)
     {
+        await _readGate.WaitAsync(cancellationToken);
         try
         {
             return DeviceTagReadResult.Success(await ReadCoreAsync(tag, cancellationToken));
@@ -490,6 +527,10 @@ public sealed class HslDeviceDriver : IDeviceDriver
         catch (Exception exception) when (DeviceReadFailureClassifier.IsPointSpecific(exception))
         {
             return DeviceTagReadResult.ConfigurationFailure(exception.Message);
+        }
+        finally
+        {
+            _readGate.Release();
         }
     }
 
@@ -694,6 +735,30 @@ public sealed class OpcUaDeviceDriver(DeviceDefinition device, DeviceReadPlan re
         }
 
         return value.Value;
+    }
+
+    public async ValueTask WriteAsync(TagDefinition tag, object value, CancellationToken cancellationToken)
+    {
+        var session = _session ?? throw new InvalidOperationException("OPC UA会话尚未连接。");
+        var nodesToWrite = new WriteValueCollection
+        {
+            new WriteValue
+            {
+                NodeId = NodeId.Parse(tag.Address),
+                AttributeId = Attributes.Value,
+                Value = new DataValue(new Variant(value))
+            }
+        };
+        var response = await session.WriteAsync(null, nodesToWrite, cancellationToken);
+        if (response.Results is null || response.Results.Count == 0)
+        {
+            throw new IOException($"OPC UA点位 {tag.Name}({tag.Address}) 写入未返回状态码。");
+        }
+
+        if (StatusCode.IsBad(response.Results[0]))
+        {
+            throw new ServiceResultException(response.Results[0]);
+        }
     }
 
     public async ValueTask<IReadOnlyDictionary<Guid, DeviceTagReadResult>> ReadManyAsync(CancellationToken cancellationToken)

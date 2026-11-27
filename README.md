@@ -2,7 +2,7 @@
 
 EdgeNexus 是面向 Windows、Linux 工控机的工业边缘采集网关。项目使用 .NET 10，将 PLC、OPC UA 等南向数据统一转换为设备与点位模型，再通过可配置 MQTT 模板、SQLite Store and Forward 和异步后台服务可靠上传。
 
-当前发布版本：`V1.1`。
+当前发布版本：`V1.2`。
 
 > 本页只描述当前源码已经实现的能力。完整设计、公共类型、配置项、HTTP API 和测试证据从 [文档中心](docs/INDEX.md) 进入。
 
@@ -46,6 +46,7 @@ EdgeNexus 解决的是长期运行的工业采集问题，而不是普通后台�
 - 统一 `DeviceData` / `TagData` 模型。
 - 设备通信状态系统 Tag，可自定义 Tag 前缀和非零失败码。
 - SQLite Outbox、最大容量、重试上限、限速补发和死信记录。
+- **MES 下行反写与上行回执闭环**：支持通过 MQTT 命令 Topic（默认 `edge/${gatewayId}/cmd/${deviceId}/write`）和 REST API（`POST /api/v1/devices/{deviceId}/write`）向 12 种协议设备安全反写，内置采集连接复用、细粒度读写锁交织、工程值逆向换算、写后立即回读校验（Read-after-Write）及五道工业安全护栏（点位级写权限、工程量程上下限、TTL 防过期误动作、`CommandId` 幂等去重与单设备流控、全量操作审计），并自动推送回执到 `edge/${gatewayId}/ack/${deviceId}/write`。
 
 详细报文生成和生命周期见 [MQTT 文档](docs/MQTT.md)。
 

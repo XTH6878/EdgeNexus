@@ -81,10 +81,50 @@ public sealed class GatewayConfigurationValidator : IGatewayConfigurationValidat
                     errors.Add($"点位 {tag.Id} 的名称和地址不能为空。");
                 }
 
+                if (tag.MinWriteValue.HasValue && tag.MaxWriteValue.HasValue && tag.MinWriteValue.Value > tag.MaxWriteValue.Value)
+                {
+                    errors.Add($"点位 {tag.Name} 的反写最小值不能大于最大值。");
+                }
+
                 foreach (var protocolError in TagProtocolValidator.Validate(device, tag))
                 {
                     errors.Add(protocolError);
                 }
+            }
+        }
+
+        if (snapshot.Mqtt.WriteBackEnabled)
+        {
+            var cmdError = MqttTopicTemplateValidator.Validate(snapshot.Mqtt.WriteCommandTopicTemplate);
+            if (cmdError is not null)
+            {
+                errors.Add($"MQTT反写命令Topic: {cmdError}");
+            }
+
+            var ackError = MqttTopicTemplateValidator.Validate(snapshot.Mqtt.WriteAckTopicTemplate);
+            if (ackError is not null)
+            {
+                errors.Add($"MQTT反写回执Topic: {ackError}");
+            }
+
+            if (string.Equals(snapshot.Mqtt.WriteCommandTopicTemplate, snapshot.Mqtt.WriteAckTopicTemplate, StringComparison.Ordinal))
+            {
+                errors.Add("MQTT反写命令Topic与回执Topic不能相同。");
+            }
+
+            if (snapshot.Groups.Any(group => string.Equals(group.Topic, snapshot.Mqtt.WriteCommandTopicTemplate, StringComparison.Ordinal)))
+            {
+                errors.Add("MQTT反写命令Topic不能与采集上报Topic相同，以防止读写回环。");
+            }
+
+            if (snapshot.Mqtt.WriteCommandDefaultTtlMs is < 500 or > 300_000)
+            {
+                errors.Add("MQTT反写命令默认有效期(TTL)必须在 500ms 到 300000ms 之间。");
+            }
+
+            if (snapshot.Mqtt.WriteMaxRequestsPerSecondPerDevice is < 1 or > 1_000)
+            {
+                errors.Add("单设备每秒最大反写请求限制必须在 1 到 1000 之间。");
             }
         }
 

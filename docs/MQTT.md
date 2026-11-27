@@ -334,6 +334,14 @@ ResourceGuard 为 Critical 时拒绝入队。
 
 超过 MaxPublishAttempts 进入死信。
 
+## 21A. MQTT 下行反写与上行回执（V1.2）
+
+- 开启开关：`MqttOptions.WriteBackEnabled`（默认 `true`）。
+- 下行命令订阅模板：`MqttOptions.WriteCommandTopicTemplate`（默认 `edge/${gatewayId}/cmd/${deviceId}/write`，连接 Broker 后自动将动态段转为 `+` 订阅并启用 `NoLocal`）。
+- 上行回执发布模板：`MqttOptions.WriteAckTopicTemplate`（默认 `edge/${gatewayId}/ack/${deviceId}/write`）。
+- 安全防回环：严格忽略 `Retain=true` 的保留消息；配置校验禁止反写命令 Topic 与采集上报 Topic 或回执 Topic 相同。
+- 处理服务：`IDeviceWriteService`（含点位 `Writable` 校验、`MinWriteValue`/`MaxWriteValue` 量程校验、`WriteCommandDefaultTtlMs` 过期拦截、`CommandId` 幂等去重、单设备每秒限流、逆向换算与写后回读校验）。
+
 ## 22. 死信
 
 表：`mqtt_dead_letter`。
