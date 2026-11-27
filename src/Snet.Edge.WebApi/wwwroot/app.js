@@ -711,6 +711,34 @@ const app = createApp({
       ElMessage.success(`已按规范新增点位 ${example.address}，请核对后保存。`);
     };
 
+    const promptWriteTag = async row => {
+      if (!currentDevice.value || !row.name) return;
+      try {
+        const rangeHint = (row.minWriteValue !== '' || row.maxWriteValue !== '')
+          ? `（安全量程：${row.minWriteValue !== '' ? row.minWriteValue : '-∞'} ~ ${row.maxWriteValue !== '' ? row.maxWriteValue : '+∞'}）`
+          : '';
+        const { value } = await ElMessageBox.prompt(
+          `请输入要向点位 [${row.name}] (${row.address}) 反写的工程值${rangeHint}。\n注意：需先将开启“允许反写”的点位保存草稿并点击顶部“发布生效”。`,
+          '在线安全反写测试',
+          { confirmButtonText: '立即反写并回读校验', cancelButtonText: '取消', inputValue: row.finalVal !== '—' ? String(row.finalVal) : '' }
+        );
+        const parsedValue = row.dataType === 'Bool'
+          ? ['true', '1', 'yes', 'on'].includes(String(value).trim().toLowerCase())
+          : row.dataType === 'String' ? String(value) : Number(value);
+        const ack = await api(`/api/v1/devices/${currentDevice.value.id}/write`, {
+          method: 'POST',
+          body: { writes: [{ tag: row.name, value: parsedValue }] }
+        });
+        const item = ack.results?.[0];
+        ElMessage.success(`反写成功！写入原始值=${item?.writtenRawValue}，PLC回读值=${item?.readBackValue}（耗时 ${ack.elapsedMs}ms）`);
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          const detail = error.data?.results?.[0]?.error || error.data?.error || error.message || error;
+          ElMessage.error(`反写被拦截或失败：${detail}`);
+        }
+      }
+    };
+
     const calcFinalVal = point => point.finalVal ?? '—';
     const qualityLabel = quality => ({
       Good: '正常', Uncertain: '不确定', Bad: '异常', Disconnected: '断开',
@@ -828,7 +856,10 @@ const app = createApp({
       enabled: false, gatewayId: 'EDGENEXUS_01', host: '127.0.0.1', port: 1883, clientId: 'EDGENEXUS_01',
       username: '', password: '', qos: 1, retain: false, useTls: false, lastWillTopic: 'edge/status',
       lastWillPayload: 'offline', storeAndForwardEnabled: true, outboxMaxMessages: 500000,
-      maxPublishAttempts: 20, replayMaxMessagesPerSecond: 200
+      maxPublishAttempts: 20, replayMaxMessagesPerSecond: 200,
+      writeBackEnabled: true, writeCommandTopicTemplate: 'edge/${gatewayId}/cmd/${deviceId}/write',
+      writeAckTopicTemplate: 'edge/${gatewayId}/ack/${deviceId}/write',
+      writeCommandDefaultTtlMs: 10000, writeMaxRequestsPerSecondPerDevice: 20
     });
     const showMqttTemplateModal = ref(false);
     const isEditingMqttTemplate = ref(false);

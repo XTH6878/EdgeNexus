@@ -769,6 +769,24 @@
                       <el-form-item label="补传速率(条/秒)"><el-input-number v-model="mqttConfig.replayMaxMessagesPerSecond" :min="1" :max="10000"></el-input-number></el-form-item>
                     </template>
 
+                    <el-divider border-style="dashed"></el-divider>
+                    <div style="font-weight: bold; color: var(--snet-primary); margin-bottom: 15px;">🎯 MES 下行反写与安全护栏</div>
+                    <el-form-item label="启用远程反写"><el-switch v-model="mqttConfig.writeBackEnabled" active-text="开启" inactive-text="关闭"></el-switch></el-form-item>
+                    <template v-if="mqttConfig.writeBackEnabled">
+                      <el-form-item label="下行命令 Topic">
+                        <el-input v-model="mqttConfig.writeCommandTopicTemplate" placeholder="edge/${gatewayId}/cmd/${deviceId}/write"></el-input>
+                      </el-form-item>
+                      <el-form-item label="上行回执 Topic">
+                        <el-input v-model="mqttConfig.writeAckTopicTemplate" placeholder="edge/${gatewayId}/ack/${deviceId}/write"></el-input>
+                      </el-form-item>
+                      <el-form-item label="指令有效期(ms)">
+                        <el-input-number v-model="mqttConfig.writeCommandDefaultTtlMs" :min="500" :max="300000" :step="1000"></el-input-number>
+                      </el-form-item>
+                      <el-form-item label="单设备限流(次/秒)">
+                        <el-input-number v-model="mqttConfig.writeMaxRequestsPerSecondPerDevice" :min="1" :max="1000" :step="5"></el-input-number>
+                      </el-form-item>
+                    </template>
+
                     <el-form-item style="margin-top: 25px;">
                         <div class="mqtt-actions">
                             <el-button @click="saveMqtt">仅保存草稿</el-button>
@@ -1236,7 +1254,12 @@
                     </template>
                 </el-table-column>
 
-                <el-table-column label="操作" width="60" align="center" fixed="right"><template #default="scope"><el-button type="danger" icon="Delete" link size="small" @click="tagList.splice(scope.$index, 1)"></el-button></template></el-table-column>
+                <el-table-column label="操作" width="115" align="center" fixed="right">
+                    <template #default="scope">
+                        <el-button v-if="scope.row.writable" type="warning" link size="small" @click="promptWriteTag(scope.row)">反写</el-button>
+                        <el-button type="danger" icon="Delete" link size="small" @click="tagList.splice(scope.$index, 1)"></el-button>
+                    </template>
+                </el-table-column>
             </el-table>
         </div>
     </el-drawer>
