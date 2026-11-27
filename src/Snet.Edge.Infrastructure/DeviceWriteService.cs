@@ -57,10 +57,10 @@ public sealed class DeviceWriteService(
         }
 
         var snapshot = await configurationStore.GetSnapshotAsync(cancellationToken);
-        if (!snapshot.Mqtt.WriteBackEnabled && string.Equals(sourceChannel, "MQTT", StringComparison.OrdinalIgnoreCase))
+        if (!snapshot.Mqtt.WriteBackEnabled)
         {
             return RecordAndReturn(
-                new DeviceWriteAck(commandId, deviceKey, false, false, 0, now, [], "网关已禁用MQTT远程反写功能。"),
+                new DeviceWriteAck(commandId, deviceKey, false, false, 0, now, [], "网关全局反写总开关已关闭，所有反写请求均已拦截。"),
                 actor,
                 sourceChannel,
                 403,
@@ -97,9 +97,9 @@ public sealed class DeviceWriteService(
         var group = device is not null
             ? snapshot.Groups.FirstOrDefault(item => item.Id == device.GroupId)
             : null;
-        if (device is null || !device.Enabled || group is null)
+        if (device is null || !device.Enabled || group is null || !group.Enabled)
         {
-            var offlineMsg = $"设备 {deviceKey} 不存在或未启用。";
+            var offlineMsg = $"设备 {deviceKey} 不存在、所属分组未启用或设备未启用。";
             var offlineResults = command.Writes
                 .Select(item => new TagWriteResult(item.Tag, TagWriteStatus.DeviceOffline, NormalizeJsonValue(item.Value), null, null, offlineMsg))
                 .ToArray();
@@ -113,6 +113,50 @@ public sealed class DeviceWriteService(
                 offlineResults,
                 offlineMsg);
             return RecordAndReturn(offlineAck, actor, sourceChannel, 404, cacheResult: false);
+        }
+
+        if (command.ScopedGroupId.HasValue && group.Id != command.ScopedGroupId.Value)
+        {
+            var crossGroupMsg = $"跨分组越权拒绝：设备 {device.Name} 不属于指令来源分组。";
+            var crossResults = command.Writes
+                .Select(item => new TagWriteResult(item.Tag, TagWriteStatus.RejectedReadOnly, NormalizeJsonValue(item.Value), null, null, crossGroupMsg))
+                .ToArray();
+            return RecordAndReturn(
+                new DeviceWriteAck(
+                    commandId,
+                    deviceKey,
+                    false,
+                    false,
+                    (long)Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                    now,
+                    crossResults,
+                    crossGroupMsg),
+                actor,
+                sourceChannel,
+                403,
+                cacheResult: true);
+        }
+
+        if (!group.WriteBackEnabled)
+        {
+            var disabledGroupMsg = $"设备所属分组 [{group.Name}] 未启用反写功能。";
+            var disabledResults = command.Writes
+                .Select(item => new TagWriteResult(item.Tag, TagWriteStatus.RejectedReadOnly, NormalizeJsonValue(item.Value), null, null, disabledGroupMsg))
+                .ToArray();
+            return RecordAndReturn(
+                new DeviceWriteAck(
+                    commandId,
+                    deviceKey,
+                    false,
+                    false,
+                    (long)Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                    now,
+                    disabledResults,
+                    disabledGroupMsg),
+                actor,
+                sourceChannel,
+                403,
+                cacheResult: false);
         }
 
         var resolvedDeviceId = string.IsNullOrWhiteSpace(device.MqttDeviceId) ? device.Name : device.MqttDeviceId;

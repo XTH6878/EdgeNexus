@@ -3,10 +3,12 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Snet.Edge.Application;
 using Snet.Edge.Domain;
 using Snet.Edge.Infrastructure;
+using Snet.Edge.Infrastructure.GatewayMqtt;
 using Xunit;
 
 namespace Snet.Edge.Tests;
@@ -287,20 +289,35 @@ public sealed class DeviceWriteBackTests
     }
 
     [Fact]
-    public void ConfigurationValidator_PreventsCommandTopicCollision_AndModbusReadOnlyWriteBack()
+    public void ConfigurationValidator_PreventsGroupWriteBackTopicCollision_AndModbusReadOnlyWriteBack()
     {
-        var groupId = Guid.NewGuid();
+        var groupId1 = Guid.NewGuid();
+        var groupId2 = Guid.NewGuid();
         var deviceId = Guid.NewGuid();
-        var group = new MqttGroup
+        var group1 = new MqttGroup
         {
-            Id = groupId,
+            Id = groupId1,
             Name = "G1",
-            Topic = "edge/EDGENEXUS_01/cmd/PLC_01/write"
+            Line = "LINE_1",
+            Topic = "factory/${line}/${deviceId}/cmd",
+            WriteBackEnabled = true,
+            WriteCommandTopic = "factory/${line}/${deviceId}/cmd",
+            WriteAckTopic = "factory/${line}/${deviceId}/cmd"
+        };
+        var group2 = new MqttGroup
+        {
+            Id = groupId2,
+            Name = "G2",
+            Line = "LINE_1",
+            Topic = "factory/line2/${deviceId}/data",
+            WriteBackEnabled = true,
+            WriteCommandTopic = "factory/${line}/${deviceId}/cmd",
+            WriteAckTopic = "factory/line2/${deviceId}/ack"
         };
         var device = new DeviceDefinition
         {
             Id = deviceId,
-            GroupId = groupId,
+            GroupId = groupId1,
             Name = "Modbus01",
             Protocol = ProtocolKind.ModbusTcp,
             Host = "127.0.0.1",
@@ -321,33 +338,474 @@ public sealed class DeviceWriteBackTests
         var mqtt = new MqttOptions
         {
             Enabled = true,
-            WriteBackEnabled = true,
-            WriteCommandTopicTemplate = "edge/EDGENEXUS_01/cmd/PLC_01/write",
-            WriteAckTopicTemplate = "edge/EDGENEXUS_01/cmd/PLC_01/write"
+            GatewayId = "GW_01",
+            WriteBackEnabled = true
         };
 
         var validator = new GatewayConfigurationValidator();
-        var result = validator.Validate(new GatewaySnapshot([group], [device], [readOnlyInputTag], mqtt));
+        var result = validator.Validate(new GatewaySnapshot([group1, group2], [device], [readOnlyInputTag], mqtt));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Contains("只读功能码 02/04 时不允许开启反写"));
         Assert.Contains(result.Errors, e => e.Contains("反写最小值不能大于最大值"));
         Assert.Contains(result.Errors, e => e.Contains("反写命令Topic与回执Topic不能相同"));
         Assert.Contains(result.Errors, e => e.Contains("防止读写回环"));
+        Assert.Contains(result.Errors, e => e.Contains("反写命令Topic路由重复"));
 
         var filter = MqttStoreForwardWorker.BuildCommandSubscriptionFilter(
-            "edge/${gatewayId}/cmd/${deviceId}/write",
-            "GW_01");
-        Assert.Equal("edge/GW_01/cmd/+/write", filter);
-        Assert.True(MqttStoreForwardWorker.TryMatchCommandTopic(
-            "edge/${gatewayId}/cmd/${deviceId}/write",
+            "factory/${line}/${deviceId}/cmd",
             "GW_01",
-            "edge/GW_01/cmd/S7_1500_A/write",
+            "LINE_A",
+            "LineAGroup");
+        Assert.Equal("factory/LINE_A/+/cmd", filter);
+        Assert.True(MqttStoreForwardWorker.TryMatchCommandTopic(
+            "factory/${line}/${deviceId}/cmd",
+            "GW_01",
+            "LINE_A",
+            "LineAGroup",
+            "factory/LINE_A/S7_1500_A/cmd",
             out var extractedDevice));
         Assert.Equal("S7_1500_A", extractedDevice);
+        Assert.False(MqttStoreForwardWorker.TryMatchCommandTopic(
+            "factory/${line}/${deviceId}/cmd",
+            "GW_01",
+            "LINE_B",
+            "LineBGroup",
+            "factory/LINE_A/S7_1500_A/cmd",
+            out _));
         Assert.Equal(
-            "edge/GW_01/ack/S7_1500_A/write",
-            MqttStoreForwardWorker.BuildAckTopic("edge/${gatewayId}/ack/${deviceId}/write", "GW_01", "S7_1500_A"));
+            "factory/LINE_A/S7_1500_A/ack",
+            MqttStoreForwardWorker.BuildAckTopic(
+                "factory/${line}/${deviceId}/ack",
+                "GW_01",
+                "LINE_A",
+                "LineAGroup",
+                "S7_1500_A",
+                "一号PLC"));
+    }
+
+    [Fact]
+    public async Task WriteService_RejectsCrossGroupUnauthorizedWrite_AndDisabledGroupWrite()
+    {
+        var harness = await WriteTestHarness.CreateAsync(new TagDefinition
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = WriteTestHarness.DefaultDeviceId,
+            Name = "TargetSpeed",
+            Address = "100",
+            DataType = TagDataType.Int16,
+            ModbusFunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+            Writable = true
+        });
+
+        var otherGroupId = Guid.NewGuid();
+        var crossAck = await harness.WriteService.ExecuteAsync(
+            new DeviceWriteCommand(
+                "cmd-cross-group-01",
+                "PLC_01",
+                DateTimeOffset.UtcNow,
+                [new TagWriteItem("TargetSpeed", 120)],
+                ScopedGroupId: otherGroupId),
+            "MQTT",
+            CancellationToken.None);
+
+        Assert.False(crossAck.Success);
+        Assert.Equal(TagWriteStatus.RejectedReadOnly, Assert.Single(crossAck.Results).Status);
+        Assert.Contains("跨分组越权拒绝", crossAck.Error);
+        Assert.Equal(0, harness.Executor.WriteCount);
+
+        var disabledGroupHarness = await WriteTestHarness.CreateAsync(
+            new TagDefinition
+            {
+                Id = Guid.NewGuid(),
+                DeviceId = WriteTestHarness.DefaultDeviceId,
+                Name = "TargetSpeed",
+                Address = "100",
+                DataType = TagDataType.Int16,
+                ModbusFunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+                Writable = true
+            },
+            groupWriteBackEnabled: false);
+
+        var disabledAck = await disabledGroupHarness.WriteService.ExecuteAsync(
+            new DeviceWriteCommand(
+                "cmd-disabled-group-01",
+                "PLC_01",
+                DateTimeOffset.UtcNow,
+                [new TagWriteItem("TargetSpeed", 120)]),
+            "REST",
+            CancellationToken.None);
+
+        Assert.False(disabledAck.Success);
+        Assert.Contains("未启用反写功能", disabledAck.Error);
+        Assert.Equal(0, disabledGroupHarness.Executor.WriteCount);
+    }
+
+    [Fact]
+    public async Task MqttStoreForwardWorker_SubscribesGroupWriteTopics_RoutesWriteAndPublishesGroupAckOverTcpBroker()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"snet-mqtt-wb-{Guid.NewGuid():N}.db");
+        var groupAId = Guid.NewGuid();
+        var groupBId = Guid.NewGuid();
+        var deviceAId = Guid.NewGuid();
+        var groupA = new MqttGroup
+        {
+            Id = groupAId,
+            Name = "LineA",
+            Line = "LINE_A",
+            Topic = "factory/${line}/${deviceId}/data",
+            WriteBackEnabled = true,
+            WriteCommandTopic = "factory/${line}/${deviceId}/cmd",
+            WriteAckTopic = "factory/${line}/${deviceId}/ack",
+            Enabled = true
+        };
+        var groupB = new MqttGroup
+        {
+            Id = groupBId,
+            Name = "LineB",
+            Line = "LINE_B",
+            Topic = "factory/${line}/${deviceId}/data",
+            WriteBackEnabled = true,
+            WriteCommandTopic = "factory/${line}/${deviceId}/cmd",
+            WriteAckTopic = "factory/${line}/${deviceId}/ack",
+            Enabled = true
+        };
+        var deviceA = new DeviceDefinition
+        {
+            Id = deviceAId,
+            GroupId = groupAId,
+            Name = "PLC_A",
+            MqttDeviceId = "PLC_A",
+            Protocol = ProtocolKind.ModbusTcp,
+            Host = "127.0.0.1",
+            Port = 502,
+            Enabled = true
+        };
+        var tagA = new TagDefinition
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = deviceAId,
+            Name = "TempSet",
+            Address = "100",
+            DataType = TagDataType.Int16,
+            ModbusFunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+            Writable = true,
+            Operator = "*",
+            Operand = 0.1m,
+            Decimals = 1
+        };
+
+        var subscribedTopics = new ConcurrentQueue<string>();
+        var publishedAcks = new ConcurrentQueue<(string Topic, string Payload)>();
+        var twoSubscriptionsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ackPublishedTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var crossAckPublishedTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        NetworkStream? brokerStream = null;
+        var streamReady = new TaskCompletionSource<NetworkStream>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var broker = await LoopbackPlcServer.StartAsync(async stream =>
+        {
+            brokerStream = stream;
+            streamReady.TrySetResult(stream);
+            byte protoVersion = 5;
+            while (true)
+            {
+                var packet = await ReadMqttPacketAsync(stream);
+                if (packet is null)
+                {
+                    break;
+                }
+
+                var (typeAndFlags, body) = packet.Value;
+                var packetType = (byte)(typeAndFlags >> 4);
+                if (packetType == 1) // CONNECT -> CONNACK
+                {
+                    var nameLen = (body[0] << 8) | body[1];
+                    protoVersion = body[2 + nameLen];
+                    byte[] connack = protoVersion == 5
+                        ? [0x20, 0x03, 0x00, 0x00, 0x00]
+                        : [0x20, 0x02, 0x00, 0x00];
+                    await stream.WriteAsync(connack);
+                }
+                else if (packetType == 8) // SUBSCRIBE -> SUBACK
+                {
+                    var packetIdHi = body[0];
+                    var packetIdLo = body[1];
+                    var pos = 2;
+                    if (protoVersion == 5)
+                    {
+                        var propLen = ReadVarInt(body, ref pos);
+                        pos += propLen;
+                    }
+
+                    var granted = new List<byte>();
+                    while (pos + 2 < body.Length)
+                    {
+                        var len = (body[pos] << 8) | body[pos + 1];
+                        pos += 2;
+                        var topic = Encoding.UTF8.GetString(body, pos, len);
+                        pos += len + 1;
+                        subscribedTopics.Enqueue(topic);
+                        granted.Add(0x01);
+                    }
+
+                    byte[] suback = protoVersion == 5
+                        ? [0x90, (byte)(3 + granted.Count), packetIdHi, packetIdLo, 0x00, .. granted]
+                        : [0x90, (byte)(2 + granted.Count), packetIdHi, packetIdLo, .. granted];
+                    await stream.WriteAsync(suback);
+                    if (subscribedTopics.Count >= 2)
+                    {
+                        twoSubscriptionsReady.TrySetResult();
+                    }
+                }
+                else if (packetType == 3) // PUBLISH from gateway (ACK or outbox)
+                {
+                    var qos = (typeAndFlags >> 1) & 0x03;
+                    var tLen = (body[0] << 8) | body[1];
+                    var topic = Encoding.UTF8.GetString(body, 2, tLen);
+                    var pos = 2 + tLen;
+                    if (qos > 0)
+                    {
+                        var pidHi = body[pos];
+                        var pidLo = body[pos + 1];
+                        pos += 2;
+                        await stream.WriteAsync(new byte[] { 0x40, 0x02, pidHi, pidLo }); // PUBACK
+                    }
+
+                    if (protoVersion == 5)
+                    {
+                        var propLen = ReadVarInt(body, ref pos);
+                        pos += propLen;
+                    }
+
+                    var payload = Encoding.UTF8.GetString(body, pos, body.Length - pos);
+                    publishedAcks.Enqueue((topic, payload));
+                    if (topic == "factory/LINE_A/PLC_A/ack")
+                    {
+                        ackPublishedTcs.TrySetResult();
+                    }
+                    else if (topic == "factory/LINE_B/PLC_A/ack")
+                    {
+                        crossAckPublishedTcs.TrySetResult();
+                    }
+                }
+                else if (packetType == 12) // PINGREQ -> PINGRESP
+                {
+                    await stream.WriteAsync(new byte[] { 0xD0, 0x00 });
+                }
+            }
+        });
+
+        try
+        {
+            var mqtt = new MqttOptions
+            {
+                Enabled = true,
+                GatewayId = "GW_TEST",
+                Host = "127.0.0.1",
+                Port = broker.Port,
+                ClientId = "EdgeTestClient",
+                Qos = 1,
+                WriteBackEnabled = true,
+                StoreAndForwardEnabled = false
+            };
+            var snapshot = new GatewaySnapshot([groupA, groupB], [deviceA], [tagA], mqtt);
+            var store = new InMemorySnapshotStore(snapshot);
+            var telemetry = new TelemetryBuffer();
+            var executor = new FakeDeviceCommandExecutor(telemetry);
+            var audit = new InMemoryAuditLogStore();
+            var writeService = new DeviceWriteService(store, executor, audit, NullLogger<DeviceWriteService>.Instance);
+
+            var templateManager = new MqttTemplateManager($"Data Source={dbPath};Pooling=False");
+            await templateManager.InitializeAsync(CancellationToken.None);
+            var resolver = new MqttVariableResolver();
+            var outbox = new MqttOutbox(
+                $"Data Source={dbPath};Pooling=False",
+                store,
+                new AlwaysAllowResourceGuard(),
+                templateManager,
+                new MqttPayloadBuilder(resolver),
+                new MqttTopicBuilder(resolver));
+            await outbox.InitializeAsync(CancellationToken.None);
+
+            var networkService = new StubNetworkConfigurationService();
+            var worker = new MqttStoreForwardWorker(
+                outbox,
+                store,
+                networkService,
+                new MqttRuntimeStateStore(),
+                new GatewayMetrics(),
+                NullLogger<MqttStoreForwardWorker>.Instance,
+                writeService);
+
+            await worker.StartAsync(CancellationToken.None);
+            try
+            {
+                await twoSubscriptionsReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Contains("factory/LINE_A/+/cmd", subscribedTopics);
+                Assert.Contains("factory/LINE_B/+/cmd", subscribedTopics);
+
+                var stream = await streamReady.Task;
+
+                // 1) Publish valid command on LineA topic -> succeeds and publishes ACK on LineA ack topic
+                var validPayload = JsonSerializer.Serialize(new
+                {
+                    commandId = "mqtt-e2e-ok",
+                    timestamp = DateTimeOffset.UtcNow,
+                    writes = new[] { new { tag = "TempSet", value = 45.6m } }
+                });
+                await SendMqttPublishToClientAsync(stream, "factory/LINE_A/PLC_A/cmd", validPayload, retain: false);
+                await ackPublishedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(1, executor.WriteCount);
+
+                // 2) Publish cross-group command on LineB topic targeting PLC_A (belongs to LineA) -> rejected!
+                var crossPayload = JsonSerializer.Serialize(new
+                {
+                    commandId = "mqtt-e2e-cross",
+                    timestamp = DateTimeOffset.UtcNow,
+                    writes = new[] { new { tag = "TempSet", value = 55.0m } }
+                });
+                await SendMqttPublishToClientAsync(stream, "factory/LINE_B/PLC_A/cmd", crossPayload, retain: false);
+                await crossAckPublishedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(1, executor.WriteCount); // WriteCount stays 1!
+
+                // 3) Retained command must be ignored completely
+                var retainedPayload = JsonSerializer.Serialize(new
+                {
+                    commandId = "mqtt-e2e-retain",
+                    timestamp = DateTimeOffset.UtcNow,
+                    writes = new[] { new { tag = "TempSet", value = 88.0m } }
+                });
+                await SendMqttPublishToClientAsync(stream, "factory/LINE_A/PLC_A/cmd", retainedPayload, retain: true);
+                await Task.Delay(150);
+                Assert.Equal(1, executor.WriteCount);
+
+                var okAck = publishedAcks.First(a => a.Topic == "factory/LINE_A/PLC_A/ack");
+                Assert.Contains("\"success\":true", okAck.Payload, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("456", okAck.Payload);
+
+                var crossAck = publishedAcks.First(a => a.Topic == "factory/LINE_B/PLC_A/ack");
+                Assert.Contains("\"success\":false", crossAck.Payload, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("跨分组越权拒绝", crossAck.Payload);
+            }
+            finally
+            {
+                await worker.StopAsync(CancellationToken.None);
+            }
+        }
+        finally
+        {
+            foreach (var f in new[] { dbPath, $"{dbPath}-shm", $"{dbPath}-wal" })
+            {
+                if (File.Exists(f))
+                {
+                    File.Delete(f);
+                }
+            }
+        }
+    }
+
+    private static async Task<(byte FirstByte, byte[] Body)?> ReadMqttPacketAsync(NetworkStream stream)
+    {
+        var first = new byte[1];
+        if (await stream.ReadAsync(first) <= 0)
+        {
+            return null;
+        }
+
+        var remainingLength = 0;
+        var multiplier = 1;
+        var b = new byte[1];
+        while (true)
+        {
+            if (await stream.ReadAsync(b) <= 0)
+            {
+                return null;
+            }
+
+            remainingLength += (b[0] & 0x7F) * multiplier;
+            if ((b[0] & 0x80) == 0)
+            {
+                break;
+            }
+
+            multiplier *= 128;
+        }
+
+        var body = new byte[remainingLength];
+        if (remainingLength > 0 && !await ReadFullAsync(stream, body))
+        {
+            return null;
+        }
+
+        return (first[0], body);
+    }
+
+    private static int ReadVarInt(byte[] buffer, ref int pos)
+    {
+        var value = 0;
+        var multiplier = 1;
+        while (pos < buffer.Length)
+        {
+            var b = buffer[pos++];
+            value += (b & 0x7F) * multiplier;
+            if ((b & 0x80) == 0)
+            {
+                break;
+            }
+
+            multiplier *= 128;
+        }
+
+        return value;
+    }
+
+    private static async Task SendMqttPublishToClientAsync(
+        NetworkStream stream,
+        string topic,
+        string payload,
+        bool retain)
+    {
+        var topicBytes = Encoding.UTF8.GetBytes(topic);
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        var bodyLen = 2 + topicBytes.Length + 1 + payloadBytes.Length; // +1 for MQTT 5.0 zero PropertiesLength
+
+        using var ms = new MemoryStream();
+        ms.WriteByte(retain ? (byte)0x31 : (byte)0x30);
+        var len = bodyLen;
+        do
+        {
+            var encodedByte = (byte)(len % 128);
+            len /= 128;
+            if (len > 0)
+            {
+                encodedByte |= 0x80;
+            }
+
+            ms.WriteByte(encodedByte);
+        }
+        while (len > 0);
+
+        ms.WriteByte((byte)(topicBytes.Length >> 8));
+        ms.WriteByte((byte)(topicBytes.Length & 0xFF));
+        ms.Write(topicBytes);
+        ms.WriteByte(0x00); // MQTT 5.0 PropertiesLength = 0
+        ms.Write(payloadBytes);
+        await stream.WriteAsync(ms.ToArray());
+    }
+
+    private sealed class StubNetworkConfigurationService : INetworkConfigurationService
+    {
+        public ValueTask InitializeAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+        public ValueTask<NetworkConfigurationView> GetAsync(bool forceRefresh, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new NetworkConfigurationView(new NetworkBindingConfiguration(), [], []));
+        public ValueTask<NetworkConfigurationView> SaveAsync(NetworkBindingConfiguration configuration, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new NetworkConfigurationView(configuration, [], []));
+        public string? ResolveLocalIpv4(NetworkUsage usage) => null;
+        public string? ResolveInterfaceName(NetworkUsage usage) => null;
+        public long GetRevision(NetworkUsage usage) => 0;
+        public bool IsWebRequestAllowed(IPAddress? localAddress) => true;
     }
 
     [Fact]
@@ -776,14 +1234,19 @@ public sealed class DeviceWriteBackTests
 
         public static Task<WriteTestHarness> CreateAsync(
             TagDefinition tag,
-            int maxRequestsPerSecond = 20)
+            int maxRequestsPerSecond = 20,
+            bool groupWriteBackEnabled = true)
         {
             var group = new MqttGroup
             {
                 Id = DefaultGroupId,
                 Name = "TestGroup",
+                Line = "LINE1",
                 Topic = "edge/test/telemetry",
-                Enabled = true
+                Enabled = true,
+                WriteBackEnabled = groupWriteBackEnabled,
+                WriteCommandTopic = "edge/${line}/${deviceId}/cmd",
+                WriteAckTopic = "edge/${line}/${deviceId}/ack"
             };
             var device = new DeviceDefinition
             {

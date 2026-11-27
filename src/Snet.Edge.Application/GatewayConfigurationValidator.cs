@@ -39,6 +39,39 @@ public sealed class GatewayConfigurationValidator : IGatewayConfigurationValidat
             {
                 errors.Add($"分组 {group.Name} 的采集或上传周期无效。");
             }
+
+            if (group.WriteBackEnabled)
+            {
+                var cmdErr = MqttTopicTemplateValidator.Validate(group.WriteCommandTopic);
+                if (cmdErr is not null)
+                {
+                    errors.Add($"分组 {group.Name} 反写命令Topic: {cmdErr}");
+                }
+
+                var ackErr = MqttTopicTemplateValidator.Validate(group.WriteAckTopic);
+                if (ackErr is not null)
+                {
+                    errors.Add($"分组 {group.Name} 反写回执Topic: {ackErr}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(group.WriteCommandTopic) &&
+                    string.Equals(group.WriteCommandTopic, group.WriteAckTopic, StringComparison.Ordinal))
+                {
+                    errors.Add($"分组 {group.Name} 的反写命令Topic与回执Topic不能相同。");
+                }
+
+                if (!string.IsNullOrWhiteSpace(group.WriteCommandTopic) &&
+                    string.Equals(group.WriteCommandTopic, group.Topic, StringComparison.Ordinal))
+                {
+                    errors.Add($"分组 {group.Name} 的反写命令Topic不能与采集上报Topic相同，以防止读写回环。");
+                }
+
+                if (!string.IsNullOrWhiteSpace(group.WriteAckTopic) &&
+                    string.Equals(group.WriteAckTopic, group.Topic, StringComparison.Ordinal))
+                {
+                    errors.Add($"分组 {group.Name} 的反写回执Topic不能与采集上报Topic相同。");
+                }
+            }
         }
 
         foreach (var device in snapshot.Devices)
@@ -93,30 +126,30 @@ public sealed class GatewayConfigurationValidator : IGatewayConfigurationValidat
             }
         }
 
+        var telemetryTopics = snapshot.Groups
+            .Select(g => ResolveTopicKey(g.Topic, snapshot.Mqtt.GatewayId, g.Line, g.Name))
+            .ToHashSet(StringComparer.Ordinal);
+        var commandFilters = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var group in snapshot.Groups.Where(g => g.Enabled && g.WriteBackEnabled && !string.IsNullOrWhiteSpace(g.WriteCommandTopic)))
+        {
+            var resolvedCommand = ResolveTopicKey(group.WriteCommandTopic!, snapshot.Mqtt.GatewayId, group.Line, group.Name);
+            if (telemetryTopics.Contains(resolvedCommand))
+            {
+                errors.Add($"分组 {group.Name} 的反写命令Topic与采集上报Topic存在重叠，禁止保存以防止读写回环。");
+            }
+
+            if (commandFilters.TryGetValue(resolvedCommand, out var existingGroupName))
+            {
+                errors.Add($"分组 {group.Name} 与分组 {existingGroupName} 的反写命令Topic路由重复 ({resolvedCommand})。");
+            }
+            else
+            {
+                commandFilters[resolvedCommand] = group.Name;
+            }
+        }
+
         if (snapshot.Mqtt.WriteBackEnabled)
         {
-            var cmdError = MqttTopicTemplateValidator.Validate(snapshot.Mqtt.WriteCommandTopicTemplate);
-            if (cmdError is not null)
-            {
-                errors.Add($"MQTT反写命令Topic: {cmdError}");
-            }
-
-            var ackError = MqttTopicTemplateValidator.Validate(snapshot.Mqtt.WriteAckTopicTemplate);
-            if (ackError is not null)
-            {
-                errors.Add($"MQTT反写回执Topic: {ackError}");
-            }
-
-            if (string.Equals(snapshot.Mqtt.WriteCommandTopicTemplate, snapshot.Mqtt.WriteAckTopicTemplate, StringComparison.Ordinal))
-            {
-                errors.Add("MQTT反写命令Topic与回执Topic不能相同。");
-            }
-
-            if (snapshot.Groups.Any(group => string.Equals(group.Topic, snapshot.Mqtt.WriteCommandTopicTemplate, StringComparison.Ordinal)))
-            {
-                errors.Add("MQTT反写命令Topic不能与采集上报Topic相同，以防止读写回环。");
-            }
-
             if (snapshot.Mqtt.WriteCommandDefaultTtlMs is < 500 or > 300_000)
             {
                 errors.Add("MQTT反写命令默认有效期(TTL)必须在 500ms 到 300000ms 之间。");
@@ -140,6 +173,13 @@ public sealed class GatewayConfigurationValidator : IGatewayConfigurationValidat
 
         return new ConfigurationValidationResult(errors, warnings);
     }
+
+    private static string ResolveTopicKey(string template, string gatewayId, string? line, string groupName) =>
+        template.Trim()
+            .Replace("${gatewayId}", gatewayId, StringComparison.Ordinal)
+            .Replace("${line}", string.IsNullOrWhiteSpace(line) ? groupName : line.Trim(), StringComparison.Ordinal)
+            .Replace("${deviceId}", "+", StringComparison.Ordinal)
+            .Replace("${deviceName}", "+", StringComparison.Ordinal);
 
     private static void AddDuplicates<T>(
         IEnumerable<T> values,

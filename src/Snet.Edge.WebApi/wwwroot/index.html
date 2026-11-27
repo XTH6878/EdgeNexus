@@ -671,7 +671,17 @@
                 
                 <el-table-column label="通讯参数 (Topic / 驱动&IP)">
                     <template #default="{ row }">
-                        <el-tag v-if="row.nodeType === 'group'" type="info" effect="dark" style="background: rgba(255,255,255,0.1); border:none;">MQTT: {{ row.topic }}</el-tag>
+                        <template v-if="row.nodeType === 'group'">
+                            <div style="display:flex;flex-direction:column;gap:4px;">
+                                <div>
+                                    <el-tag type="info" effect="dark" style="background: rgba(255,255,255,0.1); border:none;">⬆️ 采集: {{ row.topic }}</el-tag>
+                                    <el-tag v-if="row.writeBackEnabled" type="warning" size="small" effect="dark" style="margin-left:6px;">支持反写</el-tag>
+                                </div>
+                                <div v-if="row.writeBackEnabled" style="font-size:11px;color:#9bb2c9;font-family:monospace;">
+                                    ⬇️ 命令: {{ row.writeCommandTopic }} &nbsp;|&nbsp; 📤 回执: {{ row.writeAckTopic }}
+                                </div>
+                            </div>
+                        </template>
                         <span v-else style="font-family: monospace; color: #8b9bb4;">
                             {{ row.protocol }} | {{ row.ipAddress }}
                         </span>
@@ -770,21 +780,16 @@
                     </template>
 
                     <el-divider border-style="dashed"></el-divider>
-                    <div style="font-weight: bold; color: var(--snet-primary); margin-bottom: 15px;">🎯 MES 下行反写与安全护栏</div>
-                    <el-form-item label="启用远程反写"><el-switch v-model="mqttConfig.writeBackEnabled" active-text="开启" inactive-text="关闭"></el-switch></el-form-item>
+                    <div style="font-weight: bold; color: var(--snet-primary); margin-bottom: 15px;">🎯 MES 反写全局安全策略</div>
+                    <el-form-item label="反写全局总开关"><el-switch v-model="mqttConfig.writeBackEnabled" active-text="允许" inactive-text="全禁"></el-switch></el-form-item>
                     <template v-if="mqttConfig.writeBackEnabled">
-                      <el-form-item label="下行命令 Topic">
-                        <el-input v-model="mqttConfig.writeCommandTopicTemplate" placeholder="edge/${gatewayId}/cmd/${deviceId}/write"></el-input>
-                      </el-form-item>
-                      <el-form-item label="上行回执 Topic">
-                        <el-input v-model="mqttConfig.writeAckTopicTemplate" placeholder="edge/${gatewayId}/ack/${deviceId}/write"></el-input>
-                      </el-form-item>
                       <el-form-item label="指令有效期(ms)">
                         <el-input-number v-model="mqttConfig.writeCommandDefaultTtlMs" :min="500" :max="300000" :step="1000"></el-input-number>
                       </el-form-item>
                       <el-form-item label="单设备限流(次/秒)">
                         <el-input-number v-model="mqttConfig.writeMaxRequestsPerSecondPerDevice" :min="1" :max="1000" :step="5"></el-input-number>
                       </el-form-item>
+                      <el-alert title="下行命令 Topic 与上行回执 Topic 已迁移至【南向设备数据采集 → 新建/编辑 MQTT 分组】中按分组独立配置，实现产线级隔离。" type="info" :closable="false" style="margin-bottom: 14px;"></el-alert>
                     </template>
 
                     <el-form-item style="margin-top: 25px;">
@@ -1476,12 +1481,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showAddGroupModal" :title="isEditGroup ? '编辑 MQTT 调度分组' : '新建 MQTT 调度分组'" width="500px" class="dark">
-      <el-form label-width="130px">
+    <el-dialog v-model="showAddGroupModal" :title="isEditGroup ? '编辑 MQTT 调度分组' : '新建 MQTT 调度分组'" width="620px" class="dark">
+      <el-form label-width="140px">
         <el-form-item label="分组名称"><el-input v-model="newGroup.name" placeholder="例如：一号车间"></el-input></el-form-item>
         <el-form-item label="产线标识"><el-input v-model="newGroup.line" placeholder="例如：LINE01，可用于 ${line}"></el-input></el-form-item>
-        <el-form-item label="MQTT Topic">
-          <el-input v-model="newGroup.topic" placeholder="factory/${deviceId}/data"></el-input>
+        <el-form-item label="采集上报 Topic">
+          <el-input v-model="newGroup.topic" placeholder="factory/${line}/${deviceId}/data"></el-input>
           <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;">支持 ${deviceId}、${deviceName}、${gatewayId}、${line}</div>
         </el-form-item>
         <el-form-item label="MQTT上传周期(s)">
@@ -1492,6 +1497,24 @@
           <el-input-number v-model="newGroup.scanCycle" :min="100" :max="86400000" :step="100"></el-input-number>
           <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;width:100%;">同组设备使用该采集周期，最低100ms；发布草稿后采集循环自动重建。</div>
         </el-form-item>
+        <el-divider border-style="dashed"></el-divider>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-weight:bold;color:var(--snet-warning);">🎯 本组 MES 反写开关与上下行 Topic</span>
+          <el-button size="small" type="info" plain @click="autoFillGroupWriteTopics">按采集 Topic 自动填充</el-button>
+        </div>
+        <el-form-item label="启用本组反写">
+          <el-switch v-model="newGroup.writeBackEnabled" active-text="允许本组设备反写" inactive-text="禁止反写"></el-switch>
+        </el-form-item>
+        <template v-if="newGroup.writeBackEnabled">
+          <el-form-item label="下行命令 Topic">
+            <el-input v-model="newGroup.writeCommandTopic" placeholder="factory/${line}/${deviceId}/cmd"></el-input>
+            <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;">网关订阅该主题接收本组设备反写指令（仅允许控制本组内的设备）</div>
+          </el-form-item>
+          <el-form-item label="上行回执 Topic">
+            <el-input v-model="newGroup.writeAckTopic" placeholder="factory/${line}/${deviceId}/ack"></el-input>
+            <div style="color:var(--edge-muted);font-size:11px;line-height:1.55;">反写并回读校验完成后，网关自动发布结果到此回执主题</div>
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer><el-button @click="showAddGroupModal = false">取消</el-button><el-button type="primary" @click="saveGroup">保存配置</el-button></template>
     </el-dialog>

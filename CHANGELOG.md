@@ -13,12 +13,12 @@
 ### Added
 
 - 新增工业级 **MES-to-PLC 双向反写控制闭环**（支持全部 12 种工业协议：Siemens S7、Modbus TCP、Mitsubishi MC 3E/1E Binary/ASCII TCP/UDP、Keyence MC、Omron FINS、Omron CIP、Allen-Bradley EtherNet/IP、Beckhoff ADS、Panasonic Mewtocol、Inovance TCP、Delta TCP、OPC UA）：
-  - **双通道下行入口**：MQTT 下行指令订阅（默认 `edge/${gatewayId}/cmd/${deviceId}/write`）+ 上行回执（默认 `edge/${gatewayId}/ack/${deviceId}/write`），以及 HTTP REST API（`POST /api/v1/devices/{deviceId}/write`）。
+  - **分组级上下行路由与双通道入口**：支持在每个 `MqttGroup` 内独立开启本组反写并配置专属下行命令 Topic 与上行回执 Topic（如 `factory/${line}/${deviceId}/cmd` 与 `factory/${line}/${deviceId}/ack`），支持动态增量订阅热更新及跨分组防越权校验；同时提供 HTTP REST API（`POST /api/v1/devices/{deviceId}/write`）。
   - **采集连接复用与细粒度锁交织**：`AcquisitionWorker` 实现 `IDeviceCommandExecutor`，直接复用设备活跃长连接并在 `HslDeviceDriver` 单批次间隙完成写操作，执行写后立即回读校验（Read-after-Write）并即时刷新 `TelemetryBuffer`。
   - **逆向工程值换算**：`DeviceWriteService` 自动根据点位 `Operator`（`+`、`-`、`*`、`/`）和 `Operand` 将 MES 工程值逆向换算为 PLC 寄存器原始值并按 `ByteOrder` 编码。
-  - **五道工业安全护栏与防读写回环**：点位级写权限（`TagDefinition.Writable` 默认 `false` 只读）、工程值安全量程（`MinWriteValue` / `MaxWriteValue`）、指令有效期拦截（`TtlMs` 防离线积压指令重连误动作）、`CommandId` 5 分钟滑动窗口幂等去重与单设备每秒反写流控、全量 `WRITE` 审计日志落盘，以及严格拒绝 MQTT Retain 命令与命令/采集 Topic 重叠。
-  - **Web 控制台点表反写配置**：设备点位字典编辑器新增“允许反写”开关与“反写量程 (Min~Max)”配置列，点表 Excel/CSV 导入自动保留写权限配置。
-- 新增 `DeviceWriteBackTests` 全链路反写与回路报文测试（自动化测试总数由 189 提升至 197 项并全部通过）。
+  - **五道工业安全护栏与防读写回环**：点位级写权限（`TagDefinition.Writable` 默认 `false` 只读）、工程值安全量程（`MinWriteValue` / `MaxWriteValue`）、指令有效期拦截（`TtlMs` 防离线积压指令重连误动作）、`CommandId` 5 分钟滑动窗口幂等去重与单设备每秒反写流控、全量 `WRITE` 审计日志落盘，以及严格拒绝 MQTT Retain 命令与跨组命令/采集 Topic 重叠。
+  - **Web 控制台增强**：MQTT 调度分组编辑器新增本组反写开关、上下行 Topic 配置与“按采集 Topic 自动填充”按钮；设备点位字典编辑器新增“允许反写”开关、“反写量程 (Min~Max)”及在线反写测试按钮。
+- 新增 `DeviceWriteBackTests` 全链路反写、跨分组防越权与回路报文测试（自动化测试总数由 189 提升至 199 项并全部通过）。
 
 ## [V1.1] - 2026-11-22
 

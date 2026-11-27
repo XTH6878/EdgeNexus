@@ -334,13 +334,12 @@ ResourceGuard 为 Critical 时拒绝入队。
 
 超过 MaxPublishAttempts 进入死信。
 
-## 21A. MQTT 下行反写与上行回执（V1.2）
+## 21A. 分组级 MQTT 下行反写与上行回执（V1.2）
 
-- 开启开关：`MqttOptions.WriteBackEnabled`（默认 `true`）。
-- 下行命令订阅模板：`MqttOptions.WriteCommandTopicTemplate`（默认 `edge/${gatewayId}/cmd/${deviceId}/write`，连接 Broker 后自动将动态段转为 `+` 订阅并启用 `NoLocal`）。
-- 上行回执发布模板：`MqttOptions.WriteAckTopicTemplate`（默认 `edge/${gatewayId}/ack/${deviceId}/write`）。
-- 安全防回环：严格忽略 `Retain=true` 的保留消息；配置校验禁止反写命令 Topic 与采集上报 Topic 或回执 Topic 相同。
-- 处理服务：`IDeviceWriteService`（含点位 `Writable` 校验、`MinWriteValue`/`MaxWriteValue` 量程校验、`WriteCommandDefaultTtlMs` 过期拦截、`CommandId` 幂等去重、单设备每秒限流、逆向换算与写后回读校验）。
+- 全局安全总控：`MqttOptions.WriteBackEnabled`（全网关总开关）、`WriteCommandDefaultTtlMs`（指令有效期）、`WriteMaxRequestsPerSecondPerDevice`（单设备流控）。
+- 分组独立路由：在每个 `MqttGroup` 中独立配置本组开关 `WriteBackEnabled`、下行命令模板 `WriteCommandTopic`（如 `factory/${line}/${deviceId}/cmd`）及上行回执模板 `WriteAckTopic`（如 `factory/${line}/${deviceId}/ack`）。
+- 动态订阅热更新：`MqttStoreForwardWorker` 连接 Broker 后自动遍历所有启用反写的分组，将 `${gatewayId}` 与 `${line}` 解析后把 `${deviceId}` 转为 `+` 通配符自动订阅（配置变更或发布后动态增量同步，无需重启）。
+- 跨分组防越权隔离与防回环：收到某分组命令 Topic 的报文时，网关强制校验目标设备必须属于该分组；严格忽略 `Retain=true` 消息；校验器禁止跨分组命令路由重复以及与任何采集上报 Topic 重叠。
 
 ## 22. 死信
 

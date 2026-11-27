@@ -757,6 +757,30 @@ public static class ApiEndpoints
             return "产线标识不能超过128个字符。";
         }
 
+        if (group.WriteBackEnabled)
+        {
+            if (MqttTopicTemplateValidator.Validate(group.WriteCommandTopic) is { } cmdError)
+            {
+                return $"反写命令Topic无效：{cmdError}";
+            }
+
+            if (MqttTopicTemplateValidator.Validate(group.WriteAckTopic) is { } ackError)
+            {
+                return $"反写回执Topic无效：{ackError}";
+            }
+
+            if (string.Equals(group.WriteCommandTopic, group.WriteAckTopic, StringComparison.Ordinal))
+            {
+                return "本组反写命令Topic与回执Topic不能相同。";
+            }
+
+            if (string.Equals(group.WriteCommandTopic, group.Topic, StringComparison.Ordinal) ||
+                string.Equals(group.WriteAckTopic, group.Topic, StringComparison.Ordinal))
+            {
+                return "本组反写Topic不能与采集上报Topic相同，以防止读写回环。";
+            }
+        }
+
         return group.ScanCycleMs is < GroupScheduleLimits.MinimumScanCycleMs or > GroupScheduleLimits.MaximumScanCycleMs ||
                group.UploadCycleSeconds is < GroupScheduleLimits.MinimumUploadCycleSeconds or > GroupScheduleLimits.MaximumUploadCycleSeconds
             ? "扫描周期必须为100ms到24小时，上传周期必须为1秒到24小时。"
@@ -788,28 +812,10 @@ public static class ApiEndpoints
             return "MQTT QoS、Outbox容量或补传策略无效。";
         }
 
-        if (options.WriteBackEnabled)
+        if (options.WriteCommandDefaultTtlMs is < 500 or > 300_000 ||
+            options.WriteMaxRequestsPerSecondPerDevice is < 1 or > 1_000)
         {
-            if (MqttTopicTemplateValidator.Validate(options.WriteCommandTopicTemplate) is { } cmdErr)
-            {
-                return $"反写命令Topic无效：{cmdErr}";
-            }
-
-            if (MqttTopicTemplateValidator.Validate(options.WriteAckTopicTemplate) is { } ackErr)
-            {
-                return $"反写回执Topic无效：{ackErr}";
-            }
-
-            if (string.Equals(options.WriteCommandTopicTemplate, options.WriteAckTopicTemplate, StringComparison.Ordinal))
-            {
-                return "反写命令Topic与回执Topic不能相同。";
-            }
-
-            if (options.WriteCommandDefaultTtlMs is < 500 or > 300_000 ||
-                options.WriteMaxRequestsPerSecondPerDevice is < 1 or > 1_000)
-            {
-                return "反写命令TTL必须在500ms-300000ms之间，单设备每秒限流必须在1-1000之间。";
-            }
+            return "反写命令TTL必须在500ms-300000ms之间，单设备每秒限流必须在1-1000之间。";
         }
 
         return null;

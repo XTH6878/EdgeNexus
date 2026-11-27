@@ -46,7 +46,7 @@ EdgeNexus 解决的是长期运行的工业采集问题，而不是普通后台�
 - 统一 `DeviceData` / `TagData` 模型。
 - 设备通信状态系统 Tag，可自定义 Tag 前缀和非零失败码。
 - SQLite Outbox、最大容量、重试上限、限速补发和死信记录。
-- **MES 下行反写与上行回执闭环**：支持通过 MQTT 命令 Topic（默认 `edge/${gatewayId}/cmd/${deviceId}/write`）和 REST API（`POST /api/v1/devices/{deviceId}/write`）向 12 种协议设备安全反写，内置采集连接复用、细粒度读写锁交织、工程值逆向换算、写后立即回读校验（Read-after-Write）及五道工业安全护栏（点位级写权限、工程量程上下限、TTL 防过期误动作、`CommandId` 幂等去重与单设备流控、全量操作审计），并自动推送回执到 `edge/${gatewayId}/ack/${deviceId}/write`。
+- **MES 下行反写与上行回执闭环（按分组隔离）**：支持在每个 MQTT 分组内独立启用反写开关并配置本组下行命令 Topic 与上行回执 Topic，同时支持 REST API（`POST /api/v1/devices/{deviceId}/write`）向 12 种协议设备安全反写，内置采集连接复用、细粒度读写锁交织、工程值逆向换算、写后立即回读校验（Read-after-Write）及五道工业安全护栏（点位级写权限、跨分组防越权、工程量程上下限、TTL 防过期误动作、`CommandId` 幂等去重与单设备流控、全量操作审计）。
 
 详细报文生成和生命周期见 [MQTT 文档](docs/MQTT.md)。
 

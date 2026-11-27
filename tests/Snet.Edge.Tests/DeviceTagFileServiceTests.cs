@@ -21,11 +21,29 @@ public sealed class DeviceTagFileServiceTests
 
             Assert.EndsWith(".xlsx", export.FileName, StringComparison.OrdinalIgnoreCase);
             using var workbook = new XLWorkbook(new MemoryStream(export.Content));
-            var points = workbook.Worksheet("Points");
-            Assert.Equal("TagName", points.Cell("A1").GetString());
+            var points = workbook.Worksheet("点位列表");
+            Assert.Equal("点位名称", points.Cell("A1").GetString());
+            Assert.Equal("点位地址", points.Cell("B1").GetString());
+            Assert.Equal("数据类型", points.Cell("C1").GetString());
+            Assert.Equal("Modbus功能码", points.Cell("D1").GetString());
+            Assert.Equal("允许反写", points.Cell("M1").GetString());
+            Assert.Equal("反写下限", points.Cell("N1").GetString());
+            Assert.Equal("反写上限", points.Cell("O1").GetString());
+            Assert.Equal("备注", points.Cell("P1").GetString());
             Assert.Equal(tag.Name, points.Cell("A2").GetString());
             Assert.Equal("03", points.Cell("D2").GetString());
             Assert.Equal(device.Name, workbook.Worksheet("说明").Cell("B2").GetString());
+
+            // Verify exported Chinese-header Excel can be directly re-imported losslessly
+            await using var roundTripStream = new MemoryStream(export.Content);
+            var roundTrip = await service.PreviewImportAsync(device.Id, roundTripStream, export.FileName, CancellationToken.None);
+            Assert.True(roundTrip.IsValid);
+            var imported = Assert.Single(roundTrip.Tags);
+            Assert.Equal(tag.Id, imported.Id);
+            Assert.Equal(tag.Name, imported.Name);
+            Assert.Equal(tag.Writable, imported.Writable);
+            Assert.Equal(tag.MinWriteValue, imported.MinWriteValue);
+            Assert.Equal(tag.MaxWriteValue, imported.MaxWriteValue);
         }
         finally
         {
@@ -112,7 +130,8 @@ public sealed class DeviceTagFileServiceTests
         var tag = new TagDefinition
         {
             Id = Guid.NewGuid(), DeviceId = device.Id, Name = "温度", Address = "100",
-            DataType = TagDataType.Float32, ModbusFunctionCode = ModbusFunctionCode.ReadHoldingRegisters
+            DataType = TagDataType.Float32, ModbusFunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+            Writable = true, MinWriteValue = 5M, MaxWriteValue = 120M
         };
         await store.UpsertGroupAsync(group, CancellationToken.None);
         await store.UpsertDeviceAsync(device, CancellationToken.None);

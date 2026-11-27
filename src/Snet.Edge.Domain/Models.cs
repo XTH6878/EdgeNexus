@@ -139,6 +139,9 @@ public sealed record MqttGroup
     public int ScanCycleMs { get; init; } = 1_000;
     public int UploadCycleSeconds { get; init; } = 10;
     public bool Enabled { get; init; } = true;
+    public bool WriteBackEnabled { get; init; }
+    public string? WriteCommandTopic { get; init; }
+    public string? WriteAckTopic { get; init; }
 }
 
 public sealed record DeviceDefinition
@@ -231,8 +234,6 @@ public sealed record MqttOptions
     public int MaxPublishAttempts { get; init; } = 20;
     public int ReplayMaxMessagesPerSecond { get; init; } = 200;
     public bool WriteBackEnabled { get; init; } = true;
-    public string WriteCommandTopicTemplate { get; init; } = "edge/${gatewayId}/cmd/${deviceId}/write";
-    public string WriteAckTopicTemplate { get; init; } = "edge/${gatewayId}/ack/${deviceId}/write";
     public int WriteCommandDefaultTtlMs { get; init; } = 10_000;
     public int WriteMaxRequestsPerSecondPerDevice { get; init; } = 20;
 }
@@ -261,7 +262,8 @@ public sealed record DeviceWriteCommand(
     DateTimeOffset Timestamp,
     IReadOnlyList<TagWriteItem> Writes,
     int? TtlMs = null,
-    string? Operator = null);
+    string? Operator = null,
+    Guid? ScopedGroupId = null);
 
 public sealed record TagWriteResult(
     string Tag,

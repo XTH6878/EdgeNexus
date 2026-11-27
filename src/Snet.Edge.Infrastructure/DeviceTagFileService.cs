@@ -10,8 +10,9 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
 {
     private static readonly string[] ExportHeaders =
     [
-        "TagName", "Address", "DataType", "ModbusFunctionCode", "Enabled", "ByteOrder",
-        "Operator", "Operand", "Decimals", "PublishOnChange", "Deadband", "StringLength", "Remark"
+        "点位名称", "点位地址", "数据类型", "Modbus功能码", "是否启用", "字节序",
+        "运算符", "运算值", "保留小数", "变化上传", "变化阈值", "字符串长度",
+        "允许反写", "反写下限", "反写上限", "备注"
     ];
 
     private static readonly HashSet<string> RequiredHeaders = new(StringComparer.Ordinal)
@@ -30,7 +31,7 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
             .ToArray();
 
         using var workbook = new XLWorkbook();
-        var worksheet = workbook.AddWorksheet("Points");
+        var worksheet = workbook.AddWorksheet("点位列表");
         for (var column = 0; column < ExportHeaders.Length; column++)
         {
             worksheet.Cell(1, column + 1).Value = ExportHeaders[column];
@@ -47,15 +48,18 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
             worksheet.Cell(row, 4).Value = tag.ModbusFunctionCode is null
                 ? string.Empty
                 : ((int)tag.ModbusFunctionCode.Value).ToString("00", CultureInfo.InvariantCulture);
-            worksheet.Cell(row, 5).Value = tag.Enabled;
+            worksheet.Cell(row, 5).Value = tag.Enabled ? "是" : "否";
             worksheet.Cell(row, 6).Value = tag.ByteOrder;
             worksheet.Cell(row, 7).Value = tag.Operator;
             worksheet.Cell(row, 8).Value = tag.Operand;
             worksheet.Cell(row, 9).Value = tag.Decimals;
-            worksheet.Cell(row, 10).Value = tag.PublishOnChange;
+            worksheet.Cell(row, 10).Value = tag.PublishOnChange ? "是" : "否";
             worksheet.Cell(row, 11).Value = tag.Deadband;
             worksheet.Cell(row, 12).Value = tag.StringLength;
-            worksheet.Cell(row, 13).Value = tag.Remark ?? string.Empty;
+            worksheet.Cell(row, 13).Value = tag.Writable ? "是" : "否";
+            worksheet.Cell(row, 14).Value = tag.MinWriteValue.HasValue ? tag.MinWriteValue.Value : string.Empty;
+            worksheet.Cell(row, 15).Value = tag.MaxWriteValue.HasValue ? tag.MaxWriteValue.Value : string.Empty;
+            worksheet.Cell(row, 16).Value = tag.Remark ?? string.Empty;
         }
 
         var header = worksheet.Range(1, 1, 1, ExportHeaders.Length);
@@ -63,9 +67,9 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
         header.Style.Font.FontColor = XLColor.White;
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#0B6F94");
         worksheet.SheetView.FreezeRows(1);
-        worksheet.Columns().AdjustToContents(8, 40);
+        worksheet.Columns().AdjustToContents(10, 40);
         worksheet.Column(2).Width = Math.Max(worksheet.Column(2).Width, 20);
-        worksheet.Column(13).Width = Math.Max(worksheet.Column(13).Width, 24);
+        worksheet.Column(16).Width = Math.Max(worksheet.Column(16).Width, 24);
         worksheet.RangeUsed()?.SetAutoFilter();
 
         var instructions = workbook.AddWorksheet("说明");
@@ -75,7 +79,7 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
         instructions.Cell("A3").Value = "通讯协议";
         instructions.Cell("B3").Value = device.Protocol.ToString();
         instructions.Cell("A5").Value = "必填列";
-        instructions.Cell("B5").Value = "TagName、Address、DataType";
+        instructions.Cell("B5").Value = "点位名称、点位地址、数据类型";
         instructions.Cell("A6").Value = "Modbus功能码";
         instructions.Cell("B6").Value = "01/02/03/04，仅Modbus TCP使用";
         instructions.Cell("A7").Value = "导入规则";
@@ -200,10 +204,15 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
             Deadband = OptionalDecimal(row, "deadband", existing?.Deadband ?? 0M, 0M, decimal.MaxValue, errors),
             StringLength = OptionalInt(row, "stringlength", existing?.StringLength ?? 32, 1, 65_535, errors),
             Writable = OptionalBool(row, "writable", existing?.Writable ?? false, errors),
-            MinWriteValue = existing?.MinWriteValue,
-            MaxWriteValue = existing?.MaxWriteValue,
+            MinWriteValue = OptionalNullableDecimal(row, "minwritevalue", existing?.MinWriteValue, errors),
+            MaxWriteValue = OptionalNullableDecimal(row, "maxwritevalue", existing?.MaxWriteValue, errors),
             Remark = Optional(row, "remark", existing?.Remark ?? string.Empty)
         };
+
+        if (tag.MinWriteValue.HasValue && tag.MaxWriteValue.HasValue && tag.MinWriteValue.Value > tag.MaxWriteValue.Value)
+        {
+            errors.Add(new PointTableImportIssue(row.Number, "minwritevalue", $"点位 {tag.Name} 的反写下限不能大于反写上限。"));
+        }
 
         foreach (var message in TagProtocolValidator.Validate(device, tag))
         {
@@ -241,7 +250,10 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
         CancellationToken cancellationToken)
     {
         using var workbook = new XLWorkbook(stream);
-        var worksheet = workbook.Worksheets.FirstOrDefault(sheet => sheet.Name.Equals("Points", StringComparison.OrdinalIgnoreCase))
+        var worksheet = workbook.Worksheets.FirstOrDefault(sheet =>
+                sheet.Name.Equals("点位列表", StringComparison.OrdinalIgnoreCase) ||
+                sheet.Name.Equals("点位字典", StringComparison.OrdinalIgnoreCase) ||
+                sheet.Name.Equals("Points", StringComparison.OrdinalIgnoreCase))
             ?? workbook.Worksheets.FirstOrDefault();
         var used = worksheet?.RangeUsed();
         if (used is null)
@@ -456,6 +468,31 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
         return defaultValue;
     }
 
+    private static decimal? OptionalNullableDecimal(
+        ImportRow row,
+        string field,
+        decimal? defaultValue,
+        ICollection<PointTableImportIssue> errors)
+    {
+        if (!row.Fields.TryGetValue(field, out var value))
+        {
+            return defaultValue;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        errors.Add(new PointTableImportIssue(row.Number, field, $"数值格式无效：{value}。"));
+        return defaultValue;
+    }
+
     private static bool OptionalBool(
         ImportRow row,
         string field,
@@ -498,15 +535,18 @@ public sealed class DeviceTagFileService(IGatewayConfigurationStore store) : IDe
         "点位名称" or "变量名称" or "变量名" => "tagname",
         "地址" or "点位地址" => "address",
         "数据类型" => "datatype",
-        "功能码" or "modbus功能码" => "modbusfunctioncode",
+        "功能码" or "modbus功能码" or "功能码(modbus)" => "modbusfunctioncode",
         "启用" or "是否启用" => "enabled",
         "字节序" => "byteorder",
         "运算符" or "操作符" => "operator",
         "运算值" or "操作数" => "operand",
         "小数位" or "保留小数" => "decimals",
-        "变化上传" => "publishonchange",
+        "变化上传" or "变化上传(按周期)" => "publishonchange",
         "变化阈值" => "deadband",
         "字符串长度" => "stringlength",
+        "允许反写" or "可写" or "是否可写" => "writable",
+        "反写下限" or "写入下限" or "反写最小值" => "minwritevalue",
+        "反写上限" or "写入上限" or "反写最大值" => "maxwritevalue",
         "备注" => "remark",
         var normalized => normalized
     };

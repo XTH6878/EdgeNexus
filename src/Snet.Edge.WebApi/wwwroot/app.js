@@ -111,6 +111,9 @@ const app = createApp({
         uploadCycle: group.uploadCycleSeconds,
         scanCycle: group.scanCycleMs,
         enabled: group.enabled,
+        writeBackEnabled: Boolean(group.writeBackEnabled),
+        writeCommandTopic: group.writeCommandTopic || '',
+        writeAckTopic: group.writeAckTopic || '',
         children: snapshot.devices
           .filter(device => device.groupId === group.id)
           .map(device => createDeviceView(device, group.name))
@@ -384,13 +387,46 @@ const app = createApp({
 
     const showAddGroupModal = ref(false);
     const isEditGroup = ref(false);
-    const newGroup = ref({ id: '', name: '', line: '', topic: '', uploadCycle: 10, scanCycle: 1000 });
+    const newGroup = ref({
+      id: '', name: '', line: '', topic: '', uploadCycle: 10, scanCycle: 1000,
+      writeBackEnabled: false, writeCommandTopic: '', writeAckTopic: ''
+    });
+
+    const deriveWriteTopicsFromTelemetry = telemetryTopic => {
+      const base = (telemetryTopic || 'factory/${deviceId}/data').trim().replace(/\/+$/, '');
+      if (/\/data$/i.test(base)) {
+        return { cmd: base.replace(/\/data$/i, '/cmd'), ack: base.replace(/\/data$/i, '/ack') };
+      }
+      if (/\/up$/i.test(base)) {
+        return { cmd: base.replace(/\/up$/i, '/cmd'), ack: base.replace(/\/up$/i, '/ack') };
+      }
+      return { cmd: `${base}/cmd`, ack: `${base}/ack` };
+    };
+
+    const autoFillGroupWriteTopics = () => {
+      const derived = deriveWriteTopicsFromTelemetry(newGroup.value.topic);
+      newGroup.value.writeBackEnabled = true;
+      newGroup.value.writeCommandTopic = derived.cmd;
+      newGroup.value.writeAckTopic = derived.ack;
+    };
 
     const openAddGroupModal = (row = null) => {
       isEditGroup.value = Boolean(row?.id);
-      newGroup.value = row?.id
-        ? { id: row.id, name: row.name, line: row.line || '', topic: row.topic, uploadCycle: row.uploadCycle, scanCycle: row.scanCycle }
-        : { id: '', name: '', line: '', topic: 'factory/${deviceId}/data', uploadCycle: 15, scanCycle: 1000 };
+      if (row?.id) {
+        const derived = deriveWriteTopicsFromTelemetry(row.topic);
+        newGroup.value = {
+          id: row.id, name: row.name, line: row.line || '', topic: row.topic,
+          uploadCycle: row.uploadCycle, scanCycle: row.scanCycle,
+          writeBackEnabled: Boolean(row.writeBackEnabled),
+          writeCommandTopic: row.writeCommandTopic || derived.cmd,
+          writeAckTopic: row.writeAckTopic || derived.ack
+        };
+      } else {
+        newGroup.value = {
+          id: '', name: '', line: '', topic: 'factory/${deviceId}/data', uploadCycle: 15, scanCycle: 1000,
+          writeBackEnabled: false, writeCommandTopic: 'factory/${deviceId}/cmd', writeAckTopic: 'factory/${deviceId}/ack'
+        };
+      }
       showAddGroupModal.value = true;
     };
 
@@ -403,6 +439,9 @@ const app = createApp({
       if (!Number.isFinite(model.uploadCycle) || model.uploadCycle < 1 || model.uploadCycle > 86400) {
         return ElMessage.warning('上传周期必须为1秒到24小时。');
       }
+      if (model.writeBackEnabled && (!model.writeCommandTopic?.trim() || !model.writeAckTopic?.trim())) {
+        return ElMessage.warning('启用本组反写时，下行命令 Topic 与上行回执 Topic 不能为空。');
+      }
       const id = model.id || crypto.randomUUID();
       const payload = {
         id,
@@ -411,7 +450,10 @@ const app = createApp({
         topic: model.topic.trim(),
         scanCycleMs: model.scanCycle,
         uploadCycleSeconds: model.uploadCycle,
-        enabled: true
+        enabled: true,
+        writeBackEnabled: Boolean(model.writeBackEnabled),
+        writeCommandTopic: model.writeBackEnabled ? model.writeCommandTopic?.trim() : (model.writeCommandTopic?.trim() || null),
+        writeAckTopic: model.writeBackEnabled ? model.writeAckTopic?.trim() : (model.writeAckTopic?.trim() || null)
       };
       try {
         await api(model.id ? `/api/v1/groups/${id}` : '/api/v1/groups', { method: model.id ? 'PUT' : 'POST', body: payload });
@@ -718,7 +760,7 @@ const app = createApp({
           ? `（安全量程：${row.minWriteValue !== '' ? row.minWriteValue : '-∞'} ~ ${row.maxWriteValue !== '' ? row.maxWriteValue : '+∞'}）`
           : '';
         const { value } = await ElMessageBox.prompt(
-          `请输入要向点位 [${row.name}] (${row.address}) 反写的工程值${rangeHint}。\n注意：需先将开启“允许反写”的点位保存草稿并点击顶部“发布生效”。`,
+          `请输入要向点位 [${row.name}] (${row.address}) 反写的工程值${rangeHint}。\n注意：需确保所属分组已启用“本组反写”且已保存并“发布生效”。`,
           '在线安全反写测试',
           { confirmButtonText: '立即反写并回读校验', cancelButtonText: '取消', inputValue: row.finalVal !== '—' ? String(row.finalVal) : '' }
         );
@@ -857,8 +899,7 @@ const app = createApp({
       username: '', password: '', qos: 1, retain: false, useTls: false, lastWillTopic: 'edge/status',
       lastWillPayload: 'offline', storeAndForwardEnabled: true, outboxMaxMessages: 500000,
       maxPublishAttempts: 20, replayMaxMessagesPerSecond: 200,
-      writeBackEnabled: true, writeCommandTopicTemplate: 'edge/${gatewayId}/cmd/${deviceId}/write',
-      writeAckTopicTemplate: 'edge/${gatewayId}/ack/${deviceId}/write',
+      writeBackEnabled: true,
       writeCommandDefaultTtlMs: 10000, writeMaxRequestsPerSecondPerDevice: 20
     });
     const showMqttTemplateModal = ref(false);
@@ -1510,7 +1551,7 @@ const app = createApp({
       activeNav, isCollecting, toggleAcquisition, groupList, activeDashboardGroups, totalDevices, onlineDevices,
       offlineDevices, deviceStatusType, deviceStatusLabel, deviceHealthType, deviceHealthLabel,
       resource, realtimeConnected, protocolOptions, refreshRuntime, batchCopyDevice,
-      showAddGroupModal, isEditGroup, newGroup, openAddGroupModal, saveGroup, deleteGroup,
+      showAddGroupModal, isEditGroup, newGroup, openAddGroupModal, saveGroup, deleteGroup, autoFillGroupWriteTopics,
       showDeviceModal, isEditDevice, isTestingConnection, newDevice, openAddDeviceModal, openEditDeviceModal,
       applyDefaultPort, selectedProtocolFields, saveDevice, testConnection, deleteDevice,
       shouldShowProtocolField, siemensRecommendation, connectionDiagnostic,
